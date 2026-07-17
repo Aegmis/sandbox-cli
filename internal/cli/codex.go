@@ -33,9 +33,8 @@ func newCodexCmd() *cobra.Command {
 	}
 	addRunFlags(cmd, rf)
 	// Persist Codex's login in a sandbox-owned host dir (~/.config/sandbox/
-	// agents/codex) mounted at ~/.codex. Opt out with --no-persist-auth.
+	// agents/codex) mounted as the container HOME. Opt out with --no-persist-auth.
 	rf.persistName = "codex"
-	rf.persistSubdir = ".codex"
 	cmd.Flags().BoolVar(&rf.noPersistAuth, "no-persist-auth", false, "do not persist the agent login across runs")
 	return cmd
 }

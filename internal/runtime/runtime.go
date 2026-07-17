@@ -36,6 +36,10 @@ type RunSpec struct {
 	// ShowMetrics enables the live resource bar (memory/CPU/elapsed) for
 	// non-interactive runs. Requires Name to be set.
 	ShowMetrics bool
+	// ShowSummary prints a one-line peak-usage summary after the container exits.
+	// Works for interactive runs too (sampled without drawing during the session).
+	// Requires Name to be set.
+	ShowSummary bool
 }
 
 // Runtime is a container execution backend.

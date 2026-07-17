@@ -85,8 +85,11 @@ func (d *DockerCLI) Run(ctx context.Context, spec RunSpec) (int, error) {
 	cmd := exec.CommandContext(ctx, d.bin(), args...)
 	cmd.Stdin = os.Stdin
 
-	if spec.ShowMetrics && spec.Name != "" {
-		return d.runWithMetrics(ctx, cmd, spec)
+	if spec.Name != "" && spec.ShowMetrics {
+		return d.runWithLiveGauge(cmd, spec)
+	}
+	if spec.Name != "" && spec.ShowSummary {
+		return d.runWithSummary(cmd, spec)
 	}
 
 	cmd.Stdout = os.Stdout
@@ -94,9 +97,9 @@ func (d *DockerCLI) Run(ctx context.Context, spec RunSpec) (int, error) {
 	return exitCodeOf(cmd.Run())
 }
 
-// runWithMetrics forwards the container's output through a sticky footer that
-// shows a live resource gauge, then erases the gauge on exit.
-func (d *DockerCLI) runWithMetrics(_ context.Context, cmd *exec.Cmd, spec RunSpec) (int, error) {
+// runWithLiveGauge forwards the container's output through a sticky footer that
+// shows a live resource gauge, erases the gauge on exit, and prints a summary.
+func (d *DockerCLI) runWithLiveGauge(cmd *exec.Cmd, spec RunSpec) (int, error) {
 	footer := metrics.NewTermFooter(os.Stderr)
 	outR, outW := io.Pipe()
 	errR, errW := io.Pipe()
@@ -119,7 +122,33 @@ func (d *DockerCLI) runWithMetrics(_ context.Context, cmd *exec.Cmd, spec RunSpe
 	pumps.Wait()
 	meter.Stop()
 
+	printSummary(spec, meter)
 	return exitCodeOf(runErr)
+}
+
+// runWithSummary keeps direct stdio (so an interactive TTY works) while sampling
+// resource usage silently, then prints a one-line summary after the run.
+func (d *DockerCLI) runWithSummary(cmd *exec.Cmd, spec RunSpec) (int, error) {
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+
+	meter := metrics.NewMeter(d.bin(), spec.Name, nil) // nil footer => silent
+	meter.Start()
+	runErr := cmd.Run()
+	meter.Stop()
+
+	printSummary(spec, meter)
+	return exitCodeOf(runErr)
+}
+
+// printSummary writes the meter's summary line to stderr, if any was captured.
+func printSummary(spec RunSpec, meter *metrics.Meter) {
+	if !spec.ShowSummary {
+		return
+	}
+	if s := meter.Summary(); s != "" {
+		fmt.Fprintln(os.Stderr, "\033[2m"+s+"\033[0m")
+	}
 }
 
 // pump forwards src to dst through the footer until src is exhausted.

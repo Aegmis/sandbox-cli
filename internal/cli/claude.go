@@ -38,10 +38,9 @@ func newClaudeCmd() *cobra.Command {
 	}
 	addRunFlags(cmd, rf)
 	// Persist Claude's login in a sandbox-owned host dir (~/.config/sandbox/
-	// agents/claude) mounted at ~/.claude, so you log in once. Opt out with
-	// --no-persist-auth.
+	// agents/claude) mounted as the container HOME, so you log in once. Opt out
+	// with --no-persist-auth.
 	rf.persistName = "claude"
-	rf.persistSubdir = ".claude"
 	cmd.Flags().BoolVar(&rf.noPersistAuth, "no-persist-auth", false, "do not persist the agent login across runs")
 	return cmd
 }

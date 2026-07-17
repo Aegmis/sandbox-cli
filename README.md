@@ -68,18 +68,21 @@ sandbox-cli codex  --no-tty       -- exec 'run the tests'
 ### Persistent agent login
 
 `sandbox-cli claude` / `sandbox-cli codex` **persist the agent's login by default**, so you
-authenticate once and it survives the throwaway containers. Each agent's config dir
-is bind-mounted from a dedicated, sandbox-owned host directory:
+authenticate once and it survives the throwaway containers. A dedicated,
+sandbox-owned host directory is bind-mounted as the agent's whole home:
 
 ```
-~/.config/sandbox/agents/claude  ->  /sandbox/home/.claude   (sandbox-cli claude)
-~/.config/sandbox/agents/codex   ->  /sandbox/home/.codex    (sandbox-cli codex)
+~/.config/sandbox/agents/claude  ->  /sandbox/home   (sandbox-cli claude)
+~/.config/sandbox/agents/codex   ->  /sandbox/home   (sandbox-cli codex)
 ```
 
-This is **separate from your host `~/.claude`** — the sandbox never reads or writes
-your real Claude/Codex config. The first `sandbox-cli claude` prompts you to log in;
-subsequent runs reuse the stored credentials. Opt out for a one-off, throwaway
-session with `--no-persist-auth`:
+The whole home is persisted (not just `~/.claude`) because agents keep their
+"onboarding done" flag and account info in `~/.claude.json` — a file in the home
+root — and write config via atomic rename, which a single-file bind mount can't
+capture. This directory is **separate from your host `~/.claude`** — the sandbox
+never reads or writes your real Claude/Codex config. The first `sandbox-cli claude`
+prompts you to log in; subsequent runs reuse the stored session. Opt out for a
+one-off, throwaway session with `--no-persist-auth`:
 
 ```sh
 sandbox-cli claude --no-persist-auth
@@ -101,8 +104,16 @@ work line 3
 ```
 
 It is intentionally **not** drawn during an interactive agent session (Claude/Codex
-own the full screen). Disable it with `--no-metrics`. Measurement only — no limits
-are placed on the container.
+own the full screen). Instead, **every** run (interactive included) prints a one-line
+peak-usage summary after it exits — so you still get the numbers for a Claude session:
+
+```
+sandbox-cli: peak mem 412MiB · cpu peak 138% · 12m04s
+```
+
+The summary is sampled in the background without touching the screen, and is skipped
+for containers too short-lived to sample. Disable all of this with `--no-metrics`.
+Measurement only — no limits are placed on the container.
 
 ### Common flags (run / claude / codex)
 

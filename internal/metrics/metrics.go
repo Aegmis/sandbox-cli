@@ -10,6 +10,7 @@
 package metrics
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"os/exec"
@@ -77,51 +78,72 @@ func (f *TermFooter) Finish() {
 
 // reading is the latest sampled resource usage.
 type reading struct {
-	memText string  // e.g. "512MiB / 7.6GiB"
-	memFrac float64 // used/limit, 0 if unknown
-	cpu     string  // e.g. "82.00%"
-	ok      bool
+	usedBytes float64 // memory used, bytes
+	memText   string  // e.g. "512MiB / 7.6GiB"
+	memFrac   float64 // used/limit, 0 if unknown
+	cpu       string  // e.g. "82.00%"
+	cpuVal    float64 // parsed CPU percent
+	ok        bool
 }
 
-// Meter samples a container's resource usage and drives a TermFooter.
+// Meter samples a container's resource usage. With a non-nil footer it also
+// draws a live gauge; with a nil footer it samples silently (used to compute a
+// post-run summary during an interactive session).
 type Meter struct {
 	dockerBin string
 	name      string
 	start     time.Time
-	footer    *TermFooter
+	footer    *TermFooter // nil => silent (no live gauge)
 
-	mu   sync.Mutex
-	cur  reading
-	stop chan struct{}
-	wg   sync.WaitGroup
+	mu          sync.Mutex
+	cur         reading
+	peakBytes   float64 // peak memory used, bytes
+	peakMemText string  // docker's formatting of the peak sample's used memory
+	peakCPU     float64 // peak CPU percent
+	sampled     bool    // at least one successful sample was taken
+	stop        chan struct{}
+	ctx         context.Context
+	cancel      context.CancelFunc
+	wg          sync.WaitGroup
 }
 
 // NewMeter builds a Meter for the named container.
 func NewMeter(dockerBin, name string, footer *TermFooter) *Meter {
+	ctx, cancel := context.WithCancel(context.Background())
 	return &Meter{
 		dockerBin: dockerBin,
 		name:      name,
 		start:     time.Now(),
 		footer:    footer,
 		stop:      make(chan struct{}),
+		ctx:       ctx,
+		cancel:    cancel,
 	}
 }
 
-// Start launches the sampler and renderer goroutines.
+// Start launches the sampler (and the renderer, if a footer is set).
 func (m *Meter) Start() {
-	m.wg.Add(2)
+	m.wg.Add(1)
 	go m.sampleLoop()
-	go m.renderLoop()
+	if m.footer != nil {
+		m.wg.Add(1)
+		go m.renderLoop()
+	}
 }
 
-// Stop halts the goroutines and erases the footer.
+// Stop halts the goroutines and erases the footer. It cancels any in-flight
+// `docker stats` so exit is immediate (no waiting on a blocked sample).
 func (m *Meter) Stop() {
+	m.cancel()
 	close(m.stop)
 	m.wg.Wait()
-	m.footer.Finish()
+	if m.footer != nil {
+		m.footer.Finish()
+	}
 }
 
-// sampleLoop polls `docker stats` (which itself blocks ~1-2s per sample).
+// sampleLoop polls `docker stats` (which itself blocks ~1-2s per sample) and
+// tracks the running peak.
 func (m *Meter) sampleLoop() {
 	defer m.wg.Done()
 	for {
@@ -129,6 +151,14 @@ func (m *Meter) sampleLoop() {
 		if r.ok {
 			m.mu.Lock()
 			m.cur = r
+			m.sampled = true
+			if r.usedBytes > m.peakBytes {
+				m.peakBytes = r.usedBytes
+				m.peakMemText = strings.SplitN(r.memText, "/", 2)[0]
+			}
+			if r.cpuVal > m.peakCPU {
+				m.peakCPU = r.cpuVal
+			}
 			m.mu.Unlock()
 		}
 		select {
@@ -137,6 +167,22 @@ func (m *Meter) sampleLoop() {
 		case <-time.After(time.Second):
 		}
 	}
+}
+
+// Summary returns a one-line resource summary, or "" if no sample was captured
+// (e.g. a container too short-lived for docker stats to observe).
+func (m *Meter) Summary() string {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if !m.sampled {
+		return ""
+	}
+	mem := strings.TrimSpace(m.peakMemText)
+	if mem == "" {
+		mem = humanBytes(m.peakBytes)
+	}
+	return fmt.Sprintf("sandbox-cli: peak mem %s · cpu peak %.0f%% · %s",
+		mem, m.peakCPU, formatDuration(time.Since(m.start)))
 }
 
 // renderLoop keeps the elapsed clock ticking smoothly between samples.
@@ -157,7 +203,7 @@ func (m *Meter) renderLoop() {
 
 // sample runs a single `docker stats --no-stream` for the container.
 func (m *Meter) sample() reading {
-	out, err := exec.Command(m.dockerBin, "stats", "--no-stream",
+	out, err := exec.CommandContext(m.ctx, m.dockerBin, "stats", "--no-stream",
 		"--format", "{{.MemUsage}}|{{.CPUPerc}}", m.name).Output()
 	if err != nil {
 		return reading{} // container not running yet, or gone
@@ -167,7 +213,18 @@ func (m *Meter) sample() reading {
 		return reading{}
 	}
 	memText, frac := parseMemUsage(fields[0])
-	return reading{memText: memText, memFrac: frac, cpu: strings.TrimSpace(fields[1]), ok: true}
+	usedStr := strings.TrimSpace(strings.SplitN(fields[0], "/", 2)[0])
+	usedBytes, _ := parseBytes(usedStr)
+	cpu := strings.TrimSpace(fields[1])
+	cpuVal, _ := strconv.ParseFloat(strings.TrimSuffix(cpu, "%"), 64)
+	return reading{
+		usedBytes: usedBytes,
+		memText:   memText,
+		memFrac:   frac,
+		cpu:       cpu,
+		cpuVal:    cpuVal,
+		ok:        true,
+	}
 }
 
 // format builds the status line from the latest reading and elapsed time.
@@ -241,6 +298,23 @@ var unitBytes = map[string]float64{
 	"B": 1, "": 1,
 	"KiB": 1 << 10, "MiB": 1 << 20, "GiB": 1 << 30, "TiB": 1 << 40,
 	"kB": 1e3, "KB": 1e3, "MB": 1e6, "GB": 1e9, "TB": 1e12,
+}
+
+// humanBytes renders a byte count as a compact binary size (fallback when
+// docker's own formatting isn't available).
+func humanBytes(b float64) string {
+	const unit = 1024
+	if b < unit {
+		return fmt.Sprintf("%.0fB", b)
+	}
+	units := []string{"KiB", "MiB", "GiB", "TiB"}
+	v := b / unit
+	i := 0
+	for v >= unit && i < len(units)-1 {
+		v /= unit
+		i++
+	}
+	return fmt.Sprintf("%.1f%s", v, units[i])
 }
 
 // formatDuration renders a duration as "1m04s" / "12s".

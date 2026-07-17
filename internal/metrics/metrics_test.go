@@ -103,6 +103,36 @@ func TestFooterForwardsOutputIntact(t *testing.T) {
 	}
 }
 
+func TestHumanBytes(t *testing.T) {
+	cases := map[float64]string{
+		512:             "512B",
+		1536:            "1.5KiB",
+		512 * (1 << 20): "512.0MiB",
+		2.5 * (1 << 30): "2.5GiB",
+	}
+	for in, want := range cases {
+		if got := humanBytes(in); got != want {
+			t.Errorf("humanBytes(%v) = %q, want %q", in, got, want)
+		}
+	}
+}
+
+func TestMeterSummary(t *testing.T) {
+	// No sample captured -> empty summary (avoids noise on trivial short runs).
+	m := &Meter{start: time.Now()}
+	if s := m.Summary(); s != "" {
+		t.Errorf("expected empty summary before any sample, got %q", s)
+	}
+	// After a sample, the summary reports peak memory and CPU.
+	m.sampled = true
+	m.peakMemText = "512MiB"
+	m.peakCPU = 138
+	got := m.Summary()
+	if !strings.Contains(got, "peak mem 512MiB") || !strings.Contains(got, "cpu peak 138%") {
+		t.Errorf("unexpected summary: %q", got)
+	}
+}
+
 func approx(a, b float64) bool {
 	d := a - b
 	if d < 0 {

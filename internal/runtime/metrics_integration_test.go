@@ -76,3 +76,47 @@ func TestRunWithMetrics_ForwardsOutputAndExit(t *testing.T) {
 		t.Errorf("gauge text not drawn to stderr; got: %q", es)
 	}
 }
+
+// TestRunWithSummary_PrintsPeak drives the summary-only path (as used for
+// interactive runs): direct stdio, a silent sampler, and a one-line peak summary
+// printed to stderr after the container exits.
+func TestRunWithSummary_PrintsPeak(t *testing.T) {
+	if !dockerUp() {
+		t.Skip("docker daemon not available")
+	}
+
+	origErr := os.Stderr
+	errR, errW, _ := os.Pipe()
+	os.Stderr = errW
+	var errBuf bytes.Buffer
+	var drain sync.WaitGroup
+	drain.Add(1)
+	go func() { defer drain.Done(); io.Copy(&errBuf, errR) }()
+
+	spec := RunSpec{
+		Image:   "alpine",
+		Name:    "sandbox-summary-test-" + time.Now().Format("150405.000"),
+		Workdir: "/",
+		// Long enough for at least one `docker stats` sample (~2s each) to land.
+		Command:     []string{"sh", "-c", "sleep 6"},
+		Remove:      true,
+		Home:        "/sandbox/home",
+		ShowSummary: true, // interactive-style: summary but no live gauge
+	}
+
+	code, err := NewDockerCLI().Run(context.Background(), spec)
+
+	os.Stderr = origErr
+	errW.Close()
+	drain.Wait()
+
+	if err != nil {
+		t.Fatalf("run error: %v", err)
+	}
+	if code != 0 {
+		t.Fatalf("exit code = %d, want 0", code)
+	}
+	if es := errBuf.String(); !strings.Contains(es, "peak mem") {
+		t.Errorf("summary line not printed; got: %q", es)
+	}
+}

@@ -3,7 +3,6 @@ package sandbox
 import (
 	"fmt"
 	"os"
-	"path"
 	"strconv"
 	"strings"
 	"time"
@@ -27,10 +26,9 @@ type Options struct {
 	Command     []string // guest argv
 
 	// AuthPersistDir, when non-empty, is a host directory bind-mounted read-write
-	// at <Home>/<AuthPersistSubdir> so an agent's credentials survive the
-	// ephemeral container (log in once). Set by the claude/codex wrappers.
-	AuthPersistDir    string
-	AuthPersistSubdir string // e.g. ".claude"
+	// as the agent's whole HOME so its login/config survives the ephemeral
+	// container (log in once). Set by the claude/codex wrappers.
+	AuthPersistDir string
 }
 
 // BuildSpec turns a merged config plus per-invocation options into a fully
@@ -74,16 +72,20 @@ func BuildSpec(cfg config.Config, opts Options) (runtime.RunSpec, error) {
 		mounts = append(mounts, m)
 	}
 
-	// Auth-persistence mount: a sandbox-owned host dir at the agent's config dir
-	// inside the (fake, ephemeral) HOME, so credentials survive --rm.
-	if opts.AuthPersistDir != "" && opts.AuthPersistSubdir != "" {
+	// Auth-persistence mount: a sandbox-owned host dir mounted as the whole
+	// agent HOME, so everything the agent writes there — ~/.claude.json (the
+	// "onboarding done" flag + account), ~/.claude/.credentials.json, ~/.codex —
+	// survives the ephemeral --rm container and you log in once. Mounting the
+	// whole home (not just ~/.claude) is required because config files are
+	// written via atomic rename, which a single-file bind mount cannot persist.
+	if opts.AuthPersistDir != "" {
 		home := cfg.Home
 		if home == "" {
 			home = "/sandbox/home"
 		}
 		mounts = append(mounts, runtime.Mount{
 			Source: opts.AuthPersistDir,
-			Target: path.Join(home, opts.AuthPersistSubdir),
+			Target: home,
 			RO:     false,
 		})
 	}
@@ -130,10 +132,13 @@ func BuildSpec(cfg config.Config, opts Options) (runtime.RunSpec, error) {
 		tty = *opts.TTY
 	}
 
-	// The live resource gauge is drawn only for non-interactive runs (an
-	// interactive agent TUI owns the terminal) and only when stderr is a terminal
-	// to draw on.
-	showMetrics := !opts.NoMetrics && !tty && isTerminal(os.Stderr)
+	// Metrics require a terminal to report to. The live gauge is drawn only for
+	// non-interactive runs (an interactive agent TUI owns the terminal); the
+	// post-run summary is printed for all runs, including interactive ones, since
+	// it only appears after the session ends.
+	metricsOn := !opts.NoMetrics && isTerminal(os.Stderr)
+	showMetrics := metricsOn && !tty
+	showSummary := metricsOn
 
 	return runtime.RunSpec{
 		Image:       image,
@@ -150,6 +155,7 @@ func BuildSpec(cfg config.Config, opts Options) (runtime.RunSpec, error) {
 		EnvNames:    envNames,
 		Mounts:      mounts,
 		ShowMetrics: showMetrics,
+		ShowSummary: showSummary,
 	}, nil
 }
 

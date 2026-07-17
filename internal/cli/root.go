@@ -30,10 +30,9 @@ type runFlags struct {
 	noMetrics bool
 
 	// Auth persistence (agent wrappers only). persistName is the sandbox-owned
-	// host state dir name (e.g. "claude"); persistSubdir is the agent's config
-	// dir inside the container HOME (e.g. ".claude"). noPersistAuth opts out.
+	// host state dir name (e.g. "claude") mounted as the agent's HOME.
+	// noPersistAuth opts out.
 	persistName   string
-	persistSubdir string
 	noPersistAuth bool
 }
 
@@ -68,8 +67,8 @@ func newSession(rf *runFlags) (*sandbox.Session, sandbox.Options, error) {
 		NoMetrics:   rf.noMetrics,
 	}
 
-	// Persist agent auth in a dedicated, sandbox-owned host dir mounted at the
-	// agent's config dir, so login survives the ephemeral container.
+	// Persist agent login in a dedicated, sandbox-owned host dir mounted as the
+	// agent's whole HOME, so login survives the ephemeral container.
 	if rf.persistName != "" && !rf.noPersistAuth {
 		dir := config.AgentStateDir(rf.persistName)
 		if dir != "" {
@@ -77,7 +76,6 @@ func newSession(rf *runFlags) (*sandbox.Session, sandbox.Options, error) {
 				return nil, sandbox.Options{}, fmt.Errorf("creating auth persist dir %s: %w", dir, err)
 			}
 			opts.AuthPersistDir = dir
-			opts.AuthPersistSubdir = rf.persistSubdir
 		}
 	}
 
