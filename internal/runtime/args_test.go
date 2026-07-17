@@ -138,6 +138,23 @@ func TestBuildArgs_HardeningOmittedWhenUnset(t *testing.T) {
 	}
 }
 
+func TestBuildArgs_VolumeMount(t *testing.T) {
+	got := BuildArgs(RunSpec{
+		Image:   "img",
+		Workdir: "/w",
+		Mounts: []Mount{
+			{Source: "/host/proj", Target: "/workspace"},                              // bind
+			{Source: "sandbox-cache-npm", Target: "/sandbox/home/.npm", Volume: true}, // volume
+		},
+	})
+	if !containsArg(got, "type=bind,source=/host/proj,target=/workspace") {
+		t.Errorf("expected the bind mount, got %v", got)
+	}
+	if !containsArg(got, "type=volume,source=sandbox-cache-npm,target=/sandbox/home/.npm") {
+		t.Errorf("expected the named volume mount, got %v", got)
+	}
+}
+
 func TestBuildArgs_Entrypoint(t *testing.T) {
 	got := BuildArgs(RunSpec{Image: "img", Workdir: "/w", Entrypoint: "/usr/local/bin/sandbox-firewall"})
 	if !hasPair(got, "--entrypoint", "/usr/local/bin/sandbox-firewall") {

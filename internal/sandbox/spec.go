@@ -27,6 +27,7 @@ type Options struct {
 	CPUs        string   // --cpus: container CPU limit (e.g. "1.5"); "" => config/unlimited
 	NoHardening bool     // --no-hardening: drop cap-drop/no-new-privileges/pids-limit (debug escape hatch)
 	Allow       []string // --allow DOMAIN: enable the egress allowlist and permit these domains (repeatable)
+	Cache       bool     // --cache: persist package-manager caches in named volumes across runs
 	Command     []string // guest argv
 
 	// AuthPersistDir, when non-empty, is a host directory bind-mounted read-write
@@ -92,6 +93,21 @@ func BuildSpec(cfg config.Config, opts Options) (runtime.RunSpec, error) {
 			Target: home,
 			RO:     false,
 		})
+	}
+
+	// Persistent package-manager caches. When enabled, mount a docker-managed
+	// named volume at each cache dir so npm/pip/cargo/go downloads survive --rm.
+	// These overlay the corresponding subdirs of HOME (including the auth-persist
+	// bind above, when present) and are host-independent (docker volumes), so
+	// they don't touch the workspace/HOME isolation invariants.
+	if cfg.Cache.IsEnabled() || opts.Cache {
+		for _, p := range cfg.Cache.CachePaths() {
+			mounts = append(mounts, runtime.Mount{
+				Source: config.CacheVolumeName(p),
+				Target: p,
+				Volume: true,
+			})
+		}
 	}
 
 	env := map[string]string{}

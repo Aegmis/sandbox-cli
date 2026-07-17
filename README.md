@@ -165,6 +165,7 @@ sandbox-dk0gtrd15s2g  412MiB / 7.6GiB   82.00%  24
 | `--cpus` | Container CPU limit, e.g. `1.5` (default: unlimited) |
 | `--no-hardening` | Disable the default cap-drop / no-new-privileges / pids-limit (debug) |
 | `--allow` | Enable the egress allowlist and permit a domain, e.g. `--allow example.com` (repeatable; baseline registries always allowed) |
+| `--cache` | Persist package-manager caches (npm/pip/cargo/go) in named volumes across runs |
 
 ## Configuration
 
@@ -194,6 +195,9 @@ security:             # secure-by-default hardening; override per project/user
   pids_limit: 1024            # fork-bomb guard; 0 disables
   memory: ""                  # e.g. 2g — opt-in, empty = unlimited
   cpus: ""                    # e.g. 1.5 — opt-in, empty = unlimited
+cache:                # opt-in: persist package caches across --rm runs
+  enabled: false      # or use --cache; mounts named volumes for npm/pip/cargo/go
+  paths: []           # extra container cache dirs beyond the defaults
 ```
 
 ## Security model (MVP)

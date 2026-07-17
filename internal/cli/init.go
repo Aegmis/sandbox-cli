@@ -49,6 +49,13 @@ network:
 #   pids_limit: 1024          # fork-bomb guard; 0 disables
 #   memory: ""                # e.g. 2g — opt-in, empty = unlimited
 #   cpus: ""                  # e.g. 1.5 — opt-in, empty = unlimited
+
+# Persist package-manager caches (npm/pip/cargo/go) in named volumes so they
+# survive the disposable container. Opt-in; also available ad hoc via --cache.
+# cache:
+#   enabled: true
+#   paths:
+#     - /sandbox/home/.cache/pnpm
 `
 
 func newInitCmd() *cobra.Command {

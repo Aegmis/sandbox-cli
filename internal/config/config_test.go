@@ -86,6 +86,64 @@ func TestLoad_NetworkAllowlistFromConfig(t *testing.T) {
 	}
 }
 
+func TestCacheVolumeName(t *testing.T) {
+	cases := map[string]string{
+		"/sandbox/home/.npm":            "sandbox-cache-npm",
+		"/sandbox/home/.cache/pip":      "sandbox-cache-cache-pip",
+		"/sandbox/home/.cargo/registry": "sandbox-cache-cargo-registry",
+		"/sandbox/home/go/pkg/mod":      "sandbox-cache-go-pkg-mod",
+	}
+	for path, want := range cases {
+		if got := CacheVolumeName(path); got != want {
+			t.Errorf("CacheVolumeName(%q) = %q, want %q", path, got, want)
+		}
+	}
+}
+
+func TestCachePathsAndEnabled(t *testing.T) {
+	// Disabled by default.
+	if (CacheSpec{}).IsEnabled() {
+		t.Error("cache should be disabled when Enabled is nil")
+	}
+	on := true
+	c := CacheSpec{Enabled: &on, Paths: []string{"/sandbox/home/.cache/pip", "/opt/custom"}}
+	if !c.IsEnabled() {
+		t.Error("cache should be enabled")
+	}
+	paths := c.CachePaths()
+	if !containsStr(paths, "/sandbox/home/.npm") {
+		t.Errorf("defaults missing from CachePaths: %v", paths)
+	}
+	if !containsStr(paths, "/opt/custom") {
+		t.Errorf("configured extra path missing: %v", paths)
+	}
+	// A configured path that duplicates a default must not appear twice.
+	if countStr(paths, "/sandbox/home/.cache/pip") != 1 {
+		t.Errorf("duplicate cache path: %v", paths)
+	}
+}
+
+func TestLoad_CacheOverride(t *testing.T) {
+	dir := t.TempDir()
+	cfgFile := filepath.Join(dir, projectFileName)
+	content := "cache:\n  enabled: true\n  paths:\n    - /opt/extra-cache\n"
+	if err := os.WriteFile(cfgFile, []byte(content), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("XDG_CONFIG_HOME", filepath.Join(dir, "empty-xdg"))
+
+	cfg, err := Load(dir, "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !cfg.Cache.IsEnabled() {
+		t.Error("expected cache enabled from config")
+	}
+	if !containsStr(cfg.Cache.CachePaths(), "/opt/extra-cache") {
+		t.Errorf("configured cache path missing: %v", cfg.Cache.CachePaths())
+	}
+}
+
 func TestValidate_BadNetwork(t *testing.T) {
 	c := Default()
 	c.Network.Mode = "bogus"

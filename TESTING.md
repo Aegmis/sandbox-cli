@@ -54,6 +54,8 @@ go vet ./...              # must be clean
 | workspace safety refusals (`/`, `$HOME`, ancestor, file, missing) | `TestResolveWorkspace_*`, `TestIsAncestor` | `internal/sandbox` |
 | RunSpec build: mounts, env allowlist, image/user override | `TestBuildSpec_*` | `internal/sandbox` |
 | config defaults / precedence / relative mounts / discovery | `TestDefault`, `TestLoad_*`, `TestValidate_*`, `TestFindProjectConfig_*` | `internal/config` |
+| egress allowlist resolution (root+caps+entrypoint+env, overrides `none`) | `TestBuildSpec_Egress*`, `TestBuildSpec_AllowlistOverridesNetworkNone`, `TestEgressDomains` | `internal/sandbox`, `internal/config` |
+| cache volumes: default off, `--cache` adds named volumes, stable names | `TestBuildSpec_CacheVolumes`, `TestCacheVolumeName`, `TestCachePathsAndEnabled`, `TestBuildArgs_VolumeMount` | `internal/sandbox`, `internal/config`, `internal/runtime` |
 | wrapper arg splitting (claude/codex flag passthrough) | `TestSplitWrapperArgs`, `TestClaudeWrapperParsesWithoutError` | `internal/cli` |
 | `--dry-run` golden (asserts `--rm`, fake HOME, no host-home mount) | `TestDryRunInvariants` | `internal/cli` |
 | metrics parsing / bar / duration / humanBytes / footer / summary | `TestParseBytes`, `TestParseMemUsage`, `TestBar`, `TestFormatDuration`, `TestHumanBytes`, `TestFooterForwardsOutputIntact`, `TestMeterSummary` | `internal/metrics` |
@@ -161,6 +163,32 @@ if installed via `make install`).
 **TC-43 [M] TTY auto-detect**
 1. Interactive: `./bin/sandbox-cli run -- bash` → you get an interactive shell (`-it`).
 2. Piped: `echo | ./bin/sandbox-cli run -- cat` → works without a TTY.
+
+### Group 5b — Egress allowlist & persistent caches
+
+**TC-44 [A] `--allow` renders the firewall wiring**
+1. `./bin/sandbox-cli run --dry-run --allow example.com -- npm ci`
+- Expected: `--user root`, `--cap-add NET_ADMIN`, `--cap-add NET_RAW`,
+  `--entrypoint /usr/local/bin/sandbox-firewall`, and
+  `-e SANDBOX_EGRESS_ALLOW=...,example.com` plus `-e SANDBOX_RUN_AS=sandbox`.
+  A plain run (no `--allow`) shows none of these and `--user sandbox`.
+
+**TC-45 [M] Egress allowlist blocks non-allowlisted hosts (needs Docker + Linux)**
+1. `./bin/sandbox-cli run --allow example.com --no-tty --no-metrics -- sh -c 'whoami; curl -s -m 5 -o /dev/null https://1.1.1.1 && echo REACHABLE || echo BLOCKED'`
+- Expected: prints `sandbox` (privileges dropped after firewall setup) then `BLOCKED`.
+2. A registry in the baseline still works: `... --allow example.com -- sh -c 'curl -sI -m 10 https://registry.npmjs.org | head -1'` → `HTTP/... 200`.
+- Note: also covered by the `TestEgressAllowlist` integration test.
+
+**TC-46 [A] `--cache` mounts named volumes**
+1. `./bin/sandbox-cli run --dry-run --cache -- npm ci`
+- Expected: `--mount type=volume,source=sandbox-cache-npm,target=/sandbox/home/.npm`
+  and the pip/cargo/go/yarn cache volumes; the `/workspace` bind mount is unchanged.
+  A plain run has no `type=volume` mounts.
+
+**TC-47 [M] Cache persists across runs and is writable by the non-root user (needs Docker)**
+1. `./bin/sandbox-cli run --cache --no-tty --no-metrics -- sh -c 'echo hi > /sandbox/home/.npm/_probe && echo WROTE'` → prints `WROTE` (no permission error).
+2. `./bin/sandbox-cli run --cache --no-tty --no-metrics -- sh -c 'cat /sandbox/home/.npm/_probe'` → prints `hi` (survived the `--rm`).
+3. Cleanup: `docker volume rm sandbox-cache-npm` (note: this is the shared cache volume).
 
 ### Group 6 — Agent wrappers (claude / codex)
 

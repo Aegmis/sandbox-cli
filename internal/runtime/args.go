@@ -62,7 +62,11 @@ func BuildArgs(s RunSpec) []string {
 	}
 
 	for _, m := range s.Mounts {
-		mt := "type=bind,source=" + m.Source + ",target=" + m.Target
+		kind := "bind"
+		if m.Volume {
+			kind = "volume"
+		}
+		mt := "type=" + kind + ",source=" + m.Source + ",target=" + m.Target
 		if m.RO {
 			mt += ",readonly"
 		}

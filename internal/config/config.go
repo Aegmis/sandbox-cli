@@ -21,6 +21,7 @@ type Config struct {
 	EnvAllow []string          `yaml:"env_allow"`
 	Network  NetworkSpec       `yaml:"network"`
 	Security SecuritySpec      `yaml:"security"`
+	Cache    CacheSpec         `yaml:"cache"`
 }
 
 // SecuritySpec is the container-hardening policy. The pointer fields are
@@ -117,6 +118,85 @@ func DedupeDomains(in []string) []string {
 		}
 		seen[d] = true
 		out = append(out, d)
+	}
+	return out
+}
+
+// CacheSpec controls persistent package-manager caches. When enabled, sandbox-cli
+// mounts a docker-managed named volume at each cache directory so downloads
+// (npm, pip, cargo, go modules, …) survive the ephemeral --rm container instead
+// of being re-fetched every run. It is opt-in (Enabled nil/false) because it
+// introduces persistent, cross-run state and disk usage. Volumes are shared
+// across sandboxes by design — package caches are content-addressed, so reuse is
+// safe and maximizes hits.
+type CacheSpec struct {
+	Enabled *bool    `yaml:"enabled"` // opt-in; nil/false => no cache volumes
+	Paths   []string `yaml:"paths"`   // extra container cache dirs, added to the defaults
+}
+
+// IsEnabled reports whether cache volumes should be mounted.
+func (c CacheSpec) IsEnabled() bool { return c.Enabled != nil && *c.Enabled }
+
+// defaultCachePaths are the well-known cache directories persisted when caching
+// is on. They live under the sandbox HOME and are pre-created (sandbox-owned) in
+// the base image so a fresh named volume initializes with the right ownership.
+var defaultCachePaths = []string{
+	"/sandbox/home/.npm",            // npm
+	"/sandbox/home/.cache/pip",      // pip
+	"/sandbox/home/.cargo/registry", // cargo crates
+	"/sandbox/home/go/pkg/mod",      // go modules
+	"/sandbox/home/.cache/yarn",     // yarn
+}
+
+// DefaultCachePaths returns a fresh copy of the built-in cache directories.
+func DefaultCachePaths() []string {
+	return append([]string(nil), defaultCachePaths...)
+}
+
+// CachePaths returns the resolved set of container cache directories to persist —
+// the defaults unioned with any configured Paths — de-duplicated, defaults first.
+func (c CacheSpec) CachePaths() []string {
+	return dedupePaths(append(DefaultCachePaths(), c.Paths...))
+}
+
+// CacheVolumeName derives a stable, docker-valid named-volume name for a cache
+// directory. The name is a pure function of the path (independent of project) so
+// the same cache is reused across every sandbox, e.g. "/sandbox/home/.npm" ->
+// "sandbox-cache-npm".
+func CacheVolumeName(containerPath string) string {
+	p := containerPath
+	for _, pre := range []string{"/sandbox/home/", "/root/", "/home/"} {
+		if strings.HasPrefix(p, pre) {
+			p = p[len(pre):]
+			break
+		}
+	}
+	var b strings.Builder
+	b.WriteString("sandbox-cache-")
+	prevDash := true // suppress a leading separator (e.g. the "." in ".npm")
+	for _, r := range p {
+		switch {
+		case (r >= 'a' && r <= 'z') || (r >= 'A' && r <= 'Z') || (r >= '0' && r <= '9'):
+			b.WriteRune(r)
+			prevDash = false
+		case !prevDash:
+			b.WriteByte('-')
+			prevDash = true
+		}
+	}
+	return strings.TrimRight(b.String(), "-")
+}
+
+func dedupePaths(in []string) []string {
+	seen := map[string]bool{}
+	var out []string
+	for _, p := range in {
+		p = strings.TrimSpace(p)
+		if p == "" || seen[p] {
+			continue
+		}
+		seen[p] = true
+		out = append(out, p)
 	}
 	return out
 }

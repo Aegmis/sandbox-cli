@@ -144,6 +144,14 @@ func mergeInto(dst *Config, src Config, baseDir string) {
 		dst.Network.Allow = src.Network.Allow
 	}
 	mergeSecurity(&dst.Security, src.Security)
+	if src.Cache.Enabled != nil {
+		dst.Cache.Enabled = src.Cache.Enabled
+	}
+	// Paths replace (not append) so a project can fully redefine the extra cache
+	// set; the built-in defaults are always added on top at resolution time.
+	if src.Cache.Paths != nil {
+		dst.Cache.Paths = src.Cache.Paths
+	}
 	for k, v := range src.Env {
 		if dst.Env == nil {
 			dst.Env = map[string]string{}

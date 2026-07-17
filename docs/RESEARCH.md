@@ -58,7 +58,7 @@ already scoped as no-op stub seams here (`internal/netpolicy`, `internal/creds`)
 | Priority | Feature | Closes | Fit |
 |---|---|---|---|
 | **P0 ✅ shipped** | `network: allowlist` mode / `--allow DOMAIN` — default-deny egress + baseline domain allowlist (api.anthropic.com, npm, pypi, github…); in-container iptables firewall programmed at startup, then drops to the non-root user | User need #1; biggest competitor gap | Implemented across config/runtime/sandbox/cli + image firewall scripts |
-| **P1** | Persistent cache volumes — named Docker volumes for npm/pip/cargo; opt-in `cache:` config | User need #3 | New mount category in `BuildSpec` |
+| **P1 ✅ shipped** | Persistent cache volumes — opt-in named Docker volumes for npm/pip/cargo/go/yarn via `cache:` config or `--cache`, shared across runs so `--rm` no longer re-downloads | User need #3 | Volume-mount support in runtime + `CacheSpec` resolution in `BuildSpec` |
 | **P1** | Credential broker — inject secrets / header-injection so agent never sees raw keys | Competitor benchmark (`sbx`) | Fills `internal/creds` seam |
 | **P2** | `--worktree` / per-branch containers — one-liner parallel agents on git worktrees | User need #4 | Wraps `ResolveWorkspace` |
 | **P2** | Ergonomics pass — auto UID match, ensure git/SSH, MCP host reachability flag | User need #5 | Small `BuildArgs`/image tweaks |

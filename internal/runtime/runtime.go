@@ -7,11 +7,17 @@ package runtime
 
 import "context"
 
-// Mount is a single host->container bind mount.
+// Mount is a single mount into the container. By default it is a host->container
+// bind mount (Source is an absolute host path). When Volume is true it is instead
+// a docker-managed named volume (Source is the volume name, not a host path) —
+// used for persistent package-manager caches. A named volume is not
+// host-connected, so it does not weaken the "only declared bind mounts touch the
+// host" invariant.
 type Mount struct {
-	Source string // absolute host path
+	Source string // bind: absolute host path; volume: docker volume name
 	Target string // absolute container path
 	RO     bool   // read-only
+	Volume bool   // false => bind mount; true => named volume
 }
 
 // RunSpec is a fully-resolved, backend-agnostic container request. It carries no

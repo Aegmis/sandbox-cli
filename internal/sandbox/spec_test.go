@@ -228,6 +228,56 @@ func TestBuildSpec_NoEgressByDefault(t *testing.T) {
 	}
 }
 
+func TestBuildSpec_CacheVolumes(t *testing.T) {
+	dir := t.TempDir()
+
+	// Off by default: no volume mounts.
+	spec, err := BuildSpec(baseCfg(), Options{Project: dir, Command: []string{"sh"}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, m := range spec.Mounts {
+		if m.Volume {
+			t.Errorf("no cache requested but got a volume mount: %+v", m)
+		}
+	}
+
+	// --cache adds a named volume per default cache path.
+	spec, err = BuildSpec(baseCfg(), Options{Project: dir, Cache: true, Command: []string{"sh"}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	var npm *runtime.Mount
+	volCount := 0
+	for i := range spec.Mounts {
+		if spec.Mounts[i].Volume {
+			volCount++
+			if spec.Mounts[i].Target == "/sandbox/home/.npm" {
+				npm = &spec.Mounts[i]
+			}
+		}
+	}
+	if volCount == 0 {
+		t.Fatal("--cache should add cache volume mounts")
+	}
+	if npm == nil {
+		t.Fatalf("expected an npm cache volume, got mounts %+v", spec.Mounts)
+	}
+	if npm.Source != "sandbox-cache-npm" {
+		t.Errorf("npm cache volume name = %q, want sandbox-cache-npm", npm.Source)
+	}
+	// The workspace bind mount must still be present and singular.
+	binds := 0
+	for _, m := range spec.Mounts {
+		if !m.Volume {
+			binds++
+		}
+	}
+	if binds != 1 {
+		t.Errorf("expected exactly one bind mount (workspace), got %d: %+v", binds, spec.Mounts)
+	}
+}
+
 func contains(s []string, v string) bool {
 	for _, x := range s {
 		if x == v {

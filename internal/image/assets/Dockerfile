@@ -144,6 +144,14 @@ RUN chmod +x /usr/local/bin/sandbox-firewall
 # useradd pick a free one.
 RUN useradd -m -d /sandbox/home -s /bin/bash sandbox \
     && mkdir -p /workspace \
+    # Pre-create the package-manager cache dirs so that when `--cache` mounts a
+    # fresh named volume over one, docker initializes the volume from this
+    # sandbox-owned directory and the non-root user can write to it.
+    && mkdir -p /sandbox/home/.npm \
+       /sandbox/home/.cache/pip \
+       /sandbox/home/.cargo/registry \
+       /sandbox/home/go/pkg/mod \
+       /sandbox/home/.cache/yarn \
     && chown -R sandbox:sandbox /sandbox/home /workspace
 
 ENV HOME=/sandbox/home
