@@ -233,6 +233,37 @@ unchanged on top of it.
   `--user "$(id -u):$(id -g)"` if ownership matters (note: the agent's ephemeral
   HOME is owned by the image's `sandbox` user, so prefer this for non-agent runs).
 
+## Platform support
+
+sandbox-cli runs anywhere Docker does. Almost everything works identically across
+platforms; the differences are all about the boundary the host can provide.
+
+| Capability | macOS (Docker Desktop) | Linux (native Docker) | Windows (Docker Desktop / WSL2) |
+|---|---|---|---|
+| Core: `run` / `claude` / `codex`, mounts, env, hardening, metrics | ✅ | ✅ | ✅ |
+| `--cache`, `--secret`, `--worktree`, `--git` | ✅ | ✅ | ✅ |
+| Egress allowlist (`--allow`) | ✅ ¹ | ✅ | ✅ ¹ |
+| `--host-gateway` | auto ² | ✅ (needed) | auto ² |
+| `/workspace` file ownership | virtualized to you | container uid ³ | virtualized to you |
+| `--runtime kata-runtime` / `runsc` (microVM / gVisor) | ❌ ⁴ | ✅ ⁵ | ❌ ⁴ |
+
+1. The firewall runs `iptables` inside the (Linux) container, so it works wherever
+   the container kernel is Linux — including Docker Desktop. Verified in CI on
+   native Linux; not yet independently verified on Docker Desktop.
+2. `host.docker.internal` resolves automatically on Docker Desktop, so the flag is
+   optional there; it's required on native Linux.
+3. On native Linux, `/workspace` files are owned by the container user's uid — use
+   `--user "$(id -u):$(id -g)"` if that matters. Docker Desktop virtualizes this.
+4. Docker Desktop runs containers inside its own managed Linux VM and doesn't allow
+   registering custom OCI runtimes — so you can't *select* Kata/gVisor. (You already
+   get a VM boundary from Docker Desktop itself.)
+5. Requires the runtime registered with the daemon; Kata additionally needs KVM /
+   nested virtualization.
+
+**In short:** on macOS/Windows everything works except *selecting* a microVM
+runtime — and Docker Desktop already sandboxes containers in a Linux VM. For a
+hardware microVM boundary you choose per run, use native Linux with Kata or gVisor.
+
 ## Configuration
 
 Merged in precedence order (later wins): built-in defaults →

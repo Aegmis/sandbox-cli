@@ -46,6 +46,13 @@ So you can let the agent go fast without babysitting every action.
 The container image is built automatically on first run — you don't need to pull
 or build anything by hand.
 
+**Platform note:** the tool and nearly every feature work on macOS, Linux, and
+Windows wherever Docker runs. The one exception is selecting a microVM/gVisor
+runtime (`--runtime kata-runtime` / `runsc`), which needs **native Linux** —
+Docker Desktop on macOS/Windows doesn't allow custom runtimes (it already runs
+containers in its own Linux VM). See the
+[Platform support table](../README.md#platform-support) for the full breakdown.
+
 ---
 
 ## Install
