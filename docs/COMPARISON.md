@@ -117,10 +117,13 @@ tools across these tiers; the category is genuinely saturated.
 
 ### Deliberate non-goals / current gaps
 
-- **Container-tier, not microVM.** A Linux container is a softer boundary than the
-  hardware-virtualized microVMs used by Docker `sbx`, E2B, or Firecracker (and
-  softer than Docker Desktop 4.58+'s microVM layer). If you need a hard hypervisor
-  boundary, reach for those.
+- **Container-tier by default; microVM available via `--runtime`.** The default
+  boundary is a shared-kernel Linux container — softer than the hardware-virtualized
+  microVMs of Docker `sbx`, E2B, or Firecracker. But because all backends are OCI
+  runtimes, `--runtime kata-runtime` (microVM) or `--runtime runsc` (gVisor) upgrades
+  the boundary on a host that has them registered, reusing the whole pipeline. This
+  is opt-in and host-dependent (Kata needs Linux + nested virtualization), so the
+  out-of-the-box story is still container-tier — but a hard boundary is one flag away.
 - **Egress allowlist is IP-based, not a full proxy.** `network: allowlist` / `--allow`
   now default-denies egress and permits a baseline + your domains, but it resolves
   domains to IPs once at startup (very dynamic CDNs may need extra entries) and is not

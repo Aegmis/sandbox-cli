@@ -26,15 +26,21 @@ type Mount struct {
 // is the single choke point for the isolation invariants.
 type RunSpec struct {
 	Image    string
-	Name     string            // container name (--name); enables `docker stats`, snapshots
-	Workdir  string            // working dir inside the container (e.g. /workspace)
-	Command  []string          // guest argv, e.g. ["claude", "--dangerously-skip-permissions"]
-	TTY      bool              // allocate an interactive pty (-it)
-	Remove   bool              // --rm: destroy container on exit
-	Hostname string            // container hostname
-	Home     string            // value for HOME inside the container (fake, ephemeral)
-	User     string            // "" => image default; else "root", "sandbox", or uid:gid
-	Network  string            // "" => docker default bridge; "none" => no network
+	Name     string   // container name (--name); enables `docker stats`, snapshots
+	Workdir  string   // working dir inside the container (e.g. /workspace)
+	Command  []string // guest argv, e.g. ["claude", "--dangerously-skip-permissions"]
+	TTY      bool     // allocate an interactive pty (-it)
+	Remove   bool     // --rm: destroy container on exit
+	Hostname string   // container hostname
+	Home     string   // value for HOME inside the container (fake, ephemeral)
+	User     string   // "" => image default; else "root", "sandbox", or uid:gid
+	Network  string   // "" => docker default bridge; "none" => no network
+	// Runtime selects the OCI runtime (docker --runtime). "" uses docker's default
+	// (runc, a shared-kernel container). Set to a stronger-isolation runtime the
+	// host has registered, e.g. "kata-runtime" (microVM, own kernel) or "runsc"
+	// (gVisor, userspace kernel), to harden the boundary without changing anything
+	// else about how the spec is built.
+	Runtime  string
 	Env      map[string]string // explicit KEY=VALUE injected into the container
 	EnvNames []string          // names forwarded from the host env (value read at exec time)
 	Mounts   []Mount           // bind mounts (workspace + extras)

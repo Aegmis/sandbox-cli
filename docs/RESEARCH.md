@@ -63,7 +63,7 @@ already scoped as no-op stub seams here (`internal/netpolicy`, `internal/creds`)
 | **P2 ✅ shipped** | `--worktree BRANCH` runs the sandbox in a git worktree (created if absent, managed under the config dir) so parallel agents each get their own branch/container; `worktree list`/`rm` manage them | User need #4 | New `internal/worktree` package + CLI wiring |
 | **P2 ✅ shipped (partial)** | Ergonomics — `--git` (identity forwarding + workspace trust), `--host-gateway`/`--add-host` (reach host MCP servers). SSH-agent forwarding and Linux uid-matching are documented recipes rather than code (platform-fragile). | User need #5 | `--add-host` in runtime + `BuildSpec`/run-path wiring |
 | **P3 (quick wins)** | Fix stale `init` scaffold (missing `security:` block); refresh `COMPARISON.md`; wire or delete dead `netpolicy`/`creds` seams | Codebase hygiene | Low-risk, immediate |
-| Non-goal | MicroVM / hardware boundary | — | Stay container-tier; document honestly |
+| **Bonus ✅ shipped** | `--runtime kata-runtime` / `runsc` — opt into a microVM or gVisor boundary on a host that has the OCI runtime registered, reusing the whole pipeline | Closes the "container-tier only" gap (opt-in) | One-line `--runtime` passthrough in `BuildArgs` |
 
 **Recommendation:** highest-leverage single change is **P0 (egress allowlist)** — the one
 feature every research stream independently ranked #1; it fills a seam already designed for

@@ -392,6 +392,43 @@ func TestBuildSpec_GitIdentity(t *testing.T) {
 	}
 }
 
+func TestBuildSpec_Runtime(t *testing.T) {
+	dir := t.TempDir()
+
+	// Default: no runtime (docker's default runc).
+	spec, err := BuildSpec(baseCfg(), Options{Project: dir, Command: []string{"sh"}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if spec.Runtime != "" {
+		t.Errorf("Runtime = %q, want empty by default", spec.Runtime)
+	}
+
+	// Flag sets it.
+	spec, err = BuildSpec(baseCfg(), Options{Project: dir, Runtime: "runsc", Command: []string{"sh"}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if spec.Runtime != "runsc" {
+		t.Errorf("Runtime = %q, want runsc", spec.Runtime)
+	}
+
+	// Flag overrides config.
+	cfg := baseCfg()
+	cfg.Runtime = "kata-runtime"
+	spec, err = BuildSpec(cfg, Options{Project: dir, Command: []string{"sh"}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if spec.Runtime != "kata-runtime" {
+		t.Errorf("config Runtime not applied: %q", spec.Runtime)
+	}
+	spec, _ = BuildSpec(cfg, Options{Project: dir, Runtime: "runsc", Command: []string{"sh"}})
+	if spec.Runtime != "runsc" {
+		t.Errorf("flag should override config runtime, got %q", spec.Runtime)
+	}
+}
+
 func contains(s []string, v string) bool {
 	for _, x := range s {
 		if x == v {

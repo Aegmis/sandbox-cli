@@ -16,6 +16,9 @@ const scaffoldConfig = `# sandbox configuration (https://github.com/amitghadge/s
 # workdir: /workspace
 # user: sandbox         # sandbox (non-root default) | root
 #                       # agents refuse --dangerously-skip-permissions as root
+# runtime: ""           # OCI runtime; "" = docker default (runc). kata-runtime
+#                       # (microVM) or runsc (gVisor) for a stronger boundary
+#                       # (must be registered with the docker daemon).
 
 # Extra mounts beyond the automatic /workspace bind. Host paths may use ~ and may
 # be relative to this file. mode defaults to ro.

@@ -23,6 +23,10 @@ type Config struct {
 	Security SecuritySpec          `yaml:"security"`
 	Cache    CacheSpec             `yaml:"cache"`
 	Secrets  map[string]SecretSpec `yaml:"secrets"`
+	// Runtime is the OCI runtime (docker --runtime); "" uses docker's default
+	// (runc). Set to a stronger-isolation runtime the host has registered, e.g.
+	// "kata-runtime" (microVM) or "runsc" (gVisor).
+	Runtime string `yaml:"runtime"`
 }
 
 // SecretSpec is a brokered credential: a reference to a value resolved at run

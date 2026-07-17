@@ -135,6 +135,9 @@ func mergeInto(dst *Config, src Config, baseDir string) {
 	if src.Hostname != "" {
 		dst.Hostname = src.Hostname
 	}
+	if src.Runtime != "" {
+		dst.Runtime = src.Runtime
+	}
 	if src.Network.Mode != "" {
 		dst.Network.Mode = src.Network.Mode
 	}

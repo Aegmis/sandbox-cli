@@ -174,6 +174,7 @@ sandbox-dk0gtrd15s2g  412MiB / 7.6GiB   82.00%  24
 | `--git` | Forward host git identity and trust the workspace so `git` commits just work in-container |
 | `--host-gateway` | Map `host.docker.internal` to the host (reach host MCP servers; needed on Linux) |
 | `--add-host` | Extra `HOST:IP` mapping passed to docker (repeatable) |
+| `--runtime` | OCI runtime for stronger isolation, e.g. `kata-runtime` (microVM) or `runsc` (gVisor) |
 
 ## Parallel agents (git worktrees)
 
@@ -195,6 +196,23 @@ Manage them with:
 sandbox-cli worktree list        # branch -> path
 sandbox-cli worktree rm BRANCH   # remove one when you're done
 ```
+
+## Stronger isolation (microVM / gVisor)
+
+By default the container is a normal (shared-kernel) Docker container. If your
+host has a stronger OCI runtime registered, select it per run for a harder
+boundary — no other change to how the sandbox is built:
+
+```sh
+sandbox-cli claude --runtime kata-runtime   # microVM: own kernel (hardware boundary)
+sandbox-cli claude --runtime runsc          # gVisor: userspace-kernel syscall filter
+```
+
+Set it once in config with `runtime: kata-runtime`. This requires the runtime to
+be installed and registered with the Docker daemon (e.g. Kata needs a Linux host
+with nested virtualization; it is not available on stock macOS Docker Desktop).
+Everything else — mounts, hardening, egress allowlist, caches, secrets — works
+unchanged on top of it.
 
 ## Making git, MCP, and SSH "just work"
 
@@ -226,6 +244,7 @@ CLI flags. Run `sandbox-cli config show` to see the effective config.
 image: sandbox-base:0.1.1
 workdir: /workspace
 user: sandbox           # non-root; agents refuse --dangerously-skip-permissions as root
+# runtime: kata-runtime # stronger isolation (microVM); or runsc for gVisor. default: runc
 mounts:
   - { host: ./data, container: /workspace/data, mode: rw }
 env:

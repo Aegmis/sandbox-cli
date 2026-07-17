@@ -192,6 +192,19 @@ sandbox-cli worktree rm feature-a
 The branch is created from your current HEAD if it doesn't exist. Review a result
 with a normal `git checkout feature-a`.
 
+### Stronger isolation on demand (microVM / gVisor)
+By default you get a normal Docker container (shared kernel). If your host has a
+stronger OCI runtime installed, ask for it and get a harder boundary — nothing
+else changes:
+
+```sh
+sandbox-cli claude --runtime kata-runtime   # microVM: its own kernel
+sandbox-cli claude --runtime runsc          # gVisor: userspace-kernel filter
+```
+
+*(Requires the runtime to be registered with Docker; Kata needs a Linux host with
+nested virtualization.)*
+
 ### git & host services that "just work"
 ```sh
 # attribute commits to you + trust the workspace (no "dubious ownership" errors)

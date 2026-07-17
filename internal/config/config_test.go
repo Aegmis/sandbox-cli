@@ -144,6 +144,27 @@ func TestLoad_CacheOverride(t *testing.T) {
 	}
 }
 
+func TestLoad_RuntimeFromConfig(t *testing.T) {
+	dir := t.TempDir()
+	cfgFile := filepath.Join(dir, projectFileName)
+	if err := os.WriteFile(cfgFile, []byte("runtime: kata-runtime\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("XDG_CONFIG_HOME", filepath.Join(dir, "empty-xdg"))
+
+	cfg, err := Load(dir, "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cfg.Runtime != "kata-runtime" {
+		t.Errorf("Runtime = %q, want kata-runtime", cfg.Runtime)
+	}
+	// Unset stays empty (docker default).
+	if config2 := Default(); config2.Runtime != "" {
+		t.Errorf("default Runtime = %q, want empty", config2.Runtime)
+	}
+}
+
 func TestValidate_BadNetwork(t *testing.T) {
 	c := Default()
 	c.Network.Mode = "bogus"

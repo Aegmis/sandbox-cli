@@ -59,6 +59,7 @@ go vet ./...              # must be clean
 | credential broker: resolve file/cmd/env, forward by name (not on argv), inject at run time | `TestResolve_*`, `TestBuildSpec_SecretsForwardedByName`, `TestBuildSpec_BadSecretFlag`, `TestInjectSecrets_SetsEnvFromSources`, `TestValidate_Secrets`, `TestLoad_SecretsMergePerKey` | `internal/creds`, `internal/sandbox`, `internal/config` |
 | git worktrees: branch-name sanitize, stable namespaced path, create/reuse/list/remove (real git) | `TestSanitizeBranch`, `TestWorktreePath_StableAndNamespaced`, `TestResolveAndList_RealGit`, `TestResolve_NotAGitRepo` | `internal/worktree` |
 | ergonomics: `--add-host`, `--host-gateway`, `--git` (safe.directory env + identity forwarded by name) | `TestBuildArgs_AddHost`, `TestBuildSpec_HostGatewayAndAddHosts`, `TestBuildSpec_GitIdentity` | `internal/runtime`, `internal/sandbox` |
+| `--runtime` passthrough (kata/gVisor): emitted, off by default, flag overrides config | `TestBuildArgs_Runtime`, `TestBuildSpec_Runtime`, `TestLoad_RuntimeFromConfig` | `internal/runtime`, `internal/sandbox`, `internal/config` |
 | **[integration]** egress allowlist drops privileges + blocks non-allowlisted host | `TestEgressAllowlist` | `internal/cli` |
 | **[integration]** `--git` forwards host identity + trusts workspace in-container | `TestGitIdentity` | `internal/cli` |
 | **[integration]** `--host-gateway` maps host.docker.internal in /etc/hosts | `TestHostGateway` | `internal/cli` |

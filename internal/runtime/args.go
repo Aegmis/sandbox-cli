@@ -13,6 +13,9 @@ import (
 func BuildArgs(s RunSpec) []string {
 	a := []string{"run", "--init"} // --init reaps zombie children from agent subprocesses
 
+	if s.Runtime != "" {
+		a = append(a, "--runtime", s.Runtime)
+	}
 	if s.Remove {
 		a = append(a, "--rm")
 	}

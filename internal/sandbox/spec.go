@@ -27,6 +27,7 @@ type Options struct {
 	Image       string   // --image override
 	Workdir     string   // --workdir override
 	User        string   // --user override
+	Runtime     string   // --runtime: OCI runtime (e.g. kata-runtime, runsc); "" => config/default
 	ExtraMounts []string // --mount host:container[:ro|rw]
 	Env         []string // --env KEY=VALUE or bare KEY (forward host value)
 	EnvAllow    []string // --env-allow NAME (forward host value if present)
@@ -69,6 +70,12 @@ func BuildSpec(cfg config.Config, opts Options) (runtime.RunSpec, error) {
 	user := cfg.User
 	if opts.User != "" {
 		user = opts.User
+	}
+	// OCI runtime (docker --runtime): "" => docker default (runc). Named
+	// runtimeName to avoid shadowing the imported runtime package.
+	runtimeName := cfg.Runtime
+	if opts.Runtime != "" {
+		runtimeName = opts.Runtime
 	}
 
 	mounts := []runtime.Mount{WorkspaceMount(ws, workdirTargetOrDefault(cfg.Workdir))}
@@ -277,6 +284,7 @@ func BuildSpec(cfg config.Config, opts Options) (runtime.RunSpec, error) {
 		Home:     cfg.Home,
 		User:     dockerUser,
 		Network:  network,
+		Runtime:  runtimeName,
 		Env:      env,
 		EnvNames: envNames,
 		Mounts:   mounts,

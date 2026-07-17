@@ -138,6 +138,22 @@ func TestBuildArgs_HardeningOmittedWhenUnset(t *testing.T) {
 	}
 }
 
+func TestBuildArgs_Runtime(t *testing.T) {
+	got := BuildArgs(RunSpec{Image: "img", Workdir: "/w", Runtime: "kata-runtime"})
+	if !hasPair(got, "--runtime", "kata-runtime") {
+		t.Errorf("expected --runtime kata-runtime, got %v", got)
+	}
+	// Must precede the image (it's a run flag).
+	joined := strings.Join(got, " ")
+	if strings.Index(joined, "--runtime") > strings.Index(joined, " img") {
+		t.Errorf("--runtime must come before the image: %v", got)
+	}
+	// Omitted by default (docker's default runc).
+	if containsArg(BuildArgs(RunSpec{Image: "img", Workdir: "/w"}), "--runtime") {
+		t.Error("did not expect --runtime on a bare spec")
+	}
+}
+
 func TestBuildArgs_AddHost(t *testing.T) {
 	got := BuildArgs(RunSpec{
 		Image:    "img",

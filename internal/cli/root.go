@@ -39,6 +39,7 @@ type runFlags struct {
 	addHosts    []string
 	hostGateway bool
 	git         bool
+	runtime     string
 
 	// Auth persistence (agent wrappers only). persistName is the sandbox-owned
 	// host state dir name (e.g. "claude") mounted as the agent's HOME.
@@ -88,6 +89,7 @@ func newSession(rf *runFlags) (*sandbox.Session, sandbox.Options, error) {
 		AddHosts:    rf.addHosts,
 		HostGateway: rf.hostGateway,
 		GitIdentity: rf.git,
+		Runtime:     rf.runtime,
 	}
 
 	// --worktree BRANCH: resolve (creating if needed) a git worktree for the
@@ -164,6 +166,7 @@ func addRunFlags(cmd *cobra.Command, rf *runFlags) {
 	f.StringArrayVar(&rf.addHosts, "add-host", nil, "extra HOST:IP mapping passed to docker (repeatable)")
 	f.BoolVar(&rf.hostGateway, "host-gateway", false, "map host.docker.internal to the host so the agent can reach host MCP servers (Linux)")
 	f.BoolVar(&rf.git, "git", false, "forward host git identity and trust the workspace so git commits just work in-container")
+	f.StringVar(&rf.runtime, "runtime", "", "OCI runtime for stronger isolation, e.g. kata-runtime (microVM) or runsc (gVisor); must be registered with docker")
 
 	// Flags before -- are ours; everything after -- is the guest command verbatim.
 	f.SetInterspersed(false)
