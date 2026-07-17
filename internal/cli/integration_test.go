@@ -236,6 +236,83 @@ func TestHostGateway(t *testing.T) {
 	}
 }
 
+// TestSecretDelivery proves the credential broker resolves each source kind
+// (file / env / cmd) at run time and delivers the value into the container.
+func TestSecretDelivery(t *testing.T) {
+	proj := t.TempDir()
+
+	secretFile := filepath.Join(t.TempDir(), "tok")
+	if err := os.WriteFile(secretFile, []byte("file-value\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("SB_SECRET_SRC", "env-value")
+	// Register cleanup for the vars injectSecrets sets on this process.
+	for _, n := range []string{"TOK_FILE", "TOK_ENV", "TOK_CMD"} {
+		t.Setenv(n, "")
+	}
+
+	sess := newTestSession(t, config.Default())
+	_, err := sess.Run(context.Background(), sandbox.Options{
+		Project: proj,
+		TTY:     ptr(false),
+		Secrets: []string{
+			"TOK_FILE=file:" + secretFile,
+			"TOK_ENV=env:SB_SECRET_SRC",
+			"TOK_CMD=cmd:printf cmd-value",
+		},
+		Command: []string{"sh", "-c", `printf '%s|%s|%s' "$TOK_FILE" "$TOK_ENV" "$TOK_CMD" > /workspace/out.txt`},
+	}, false)
+	if err != nil {
+		t.Fatalf("run error: %v", err)
+	}
+	out, err := os.ReadFile(filepath.Join(proj, "out.txt"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := string(out); got != "file-value|env-value|cmd-value" {
+		t.Errorf("secrets delivered = %q, want file-value|env-value|cmd-value", got)
+	}
+}
+
+// TestCachePersistsAndWritable proves two things about --cache: the non-root
+// sandbox user can write to a default cache path (so the named volume
+// initialized with the right ownership), and data written there survives the
+// --rm container into a later run. It writes only a probe dotfile into the npm
+// cache volume and removes it in cleanup, so it does not destroy any real cache
+// (it may leave the other default cache volumes created but empty).
+func TestCachePersistsAndWritable(t *testing.T) {
+	const probe = "/sandbox/home/.npm/.sbtest_probe"
+
+	runCache := func(cmd string) string {
+		proj := t.TempDir()
+		sess := newTestSession(t, config.Default())
+		if _, err := sess.Run(context.Background(), sandbox.Options{
+			Project: proj,
+			TTY:     ptr(false),
+			Cache:   true,
+			Command: []string{"sh", "-c", cmd + " > /workspace/out.txt 2>&1 || true"},
+		}, false); err != nil {
+			t.Fatalf("run error: %v", err)
+		}
+		out, err := os.ReadFile(filepath.Join(proj, "out.txt"))
+		if err != nil {
+			t.Fatal(err)
+		}
+		return strings.TrimSpace(string(out))
+	}
+
+	t.Cleanup(func() { runCache("rm -f " + probe) })
+
+	// Run 1: the non-root user writes a probe into the npm cache volume.
+	if got := runCache("id -un; echo cache-ok > " + probe + " && echo WROTE"); !strings.Contains(got, "sandbox") || !strings.Contains(got, "WROTE") {
+		t.Fatalf("run 1: expected sandbox user + WROTE, got %q", got)
+	}
+	// Run 2: a fresh --rm container sees the persisted probe.
+	if got := runCache("cat " + probe); got != "cache-ok" {
+		t.Errorf("run 2: cache did not persist, read %q, want cache-ok", got)
+	}
+}
+
 // dockerAvailable is a cheap precondition guard used by TestMain-style skips.
 func dockerAvailable() bool {
 	cmd := exec.Command("docker", "info")

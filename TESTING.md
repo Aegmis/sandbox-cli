@@ -62,6 +62,8 @@ go vet ./...              # must be clean
 | **[integration]** egress allowlist drops privileges + blocks non-allowlisted host | `TestEgressAllowlist` | `internal/cli` |
 | **[integration]** `--git` forwards host identity + trusts workspace in-container | `TestGitIdentity` | `internal/cli` |
 | **[integration]** `--host-gateway` maps host.docker.internal in /etc/hosts | `TestHostGateway` | `internal/cli` |
+| **[integration]** `--secret` delivers file/env/cmd sources into the container | `TestSecretDelivery` | `internal/cli` |
+| **[integration]** `--cache` non-root write + persistence across --rm runs | `TestCachePersistsAndWritable` | `internal/cli` |
 | wrapper arg splitting (claude/codex flag passthrough) | `TestSplitWrapperArgs`, `TestClaudeWrapperParsesWithoutError` | `internal/cli` |
 | `--dry-run` golden (asserts `--rm`, fake HOME, no host-home mount) | `TestDryRunInvariants` | `internal/cli` |
 | metrics parsing / bar / duration / humanBytes / footer / summary | `TestParseBytes`, `TestParseMemUsage`, `TestBar`, `TestFormatDuration`, `TestHumanBytes`, `TestFooterForwardsOutputIntact`, `TestMeterSummary` | `internal/metrics` |
