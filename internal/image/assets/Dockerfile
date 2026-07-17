@@ -19,7 +19,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
       build-essential \
     && rm -rf /var/lib/apt/lists/*
 
-# Pre-install the agents so `sandbox claude` / `sandbox codex` work out of the box.
+# Pre-install the agents so `sandbox-cli claude` / `sandbox-cli codex` work out of the box.
 # Kept best-effort so an upstream hiccup doesn't break the whole image build.
 RUN npm install -g @anthropic-ai/claude-code @openai/codex || true
 

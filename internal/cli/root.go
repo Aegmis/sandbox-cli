@@ -1,4 +1,4 @@
-// Package cli wires the cobra command tree for the `sandbox` binary.
+// Package cli wires the cobra command tree for the `sandbox-cli` binary.
 package cli
 
 import (
@@ -118,9 +118,9 @@ func addRunFlags(cmd *cobra.Command, rf *runFlags) {
 // NewRootCmd builds the top-level command tree.
 func NewRootCmd() *cobra.Command {
 	root := &cobra.Command{
-		Use:   "sandbox",
+		Use:   "sandbox-cli",
 		Short: "Run AI coding agents in a disposable, isolated container",
-		Long: "sandbox runs a command (or an AI coding agent) inside a throwaway Docker\n" +
+		Long: "sandbox-cli runs a command (or an AI coding agent) inside a throwaway Docker\n" +
 			"container where only the chosen project is mounted at /workspace and HOME is\n" +
 			"a fake, ephemeral directory. A mistaken `rm -rf ~` or an injected command\n" +
 			"cannot touch the rest of your machine.",
@@ -141,7 +141,7 @@ func NewRootCmd() *cobra.Command {
 // Execute runs the CLI and returns a process exit code.
 func Execute() int {
 	if err := NewRootCmd().Execute(); err != nil {
-		fmt.Fprintln(os.Stderr, "sandbox: "+err.Error())
+		fmt.Fprintln(os.Stderr, "sandbox-cli: "+err.Error())
 		return 1
 	}
 	return exitCode

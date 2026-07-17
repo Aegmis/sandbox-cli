@@ -15,13 +15,13 @@ func newRunCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "run [flags] -- <command> [args...]",
 		Short: "Run any command inside the sandbox",
-		Example: "  sandbox run -- bash\n" +
-			"  sandbox run -- sh -c 'echo $HOME; ls /workspace'\n" +
-			"  sandbox run --dry-run -- npm test",
+		Example: "  sandbox-cli run -- bash\n" +
+			"  sandbox-cli run -- sh -c 'echo $HOME; ls /workspace'\n" +
+			"  sandbox-cli run --dry-run -- npm test",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			guest := guestArgs(cmd, args)
 			if len(guest) == 0 {
-				return fmt.Errorf("no command given; usage: sandbox run -- <command> [args...]")
+				return fmt.Errorf("no command given; usage: sandbox-cli run -- <command> [args...]")
 			}
 			return execute(rf, guest)
 		},
@@ -46,7 +46,7 @@ func guestArgs(cmd *cobra.Command, args []string) []string {
 // long flag, a positional, or an explicit `--` — ends the sandbox portion and
 // everything from there is forwarded verbatim to the agent.
 //
-// This makes `sandbox claude --no-persist-auth --dangerously-skip-permissions`
+// This makes `sandbox-cli claude --no-persist-auth --dangerously-skip-permissions`
 // work with no separator, while agent short flags like `-p` always pass through
 // and never collide with sandbox's own short flags. An explicit `--` still forces
 // the boundary (and is dropped from both sides).

@@ -26,63 +26,63 @@ All" while limiting the blast radius to the project it's already meant to edit.
 ## Install
 
 ```sh
-make install        # go install ./cmd/sandbox
+make install        # go install ./cmd/sandbox-cli
 # or
-make build          # -> bin/sandbox
+make build          # -> bin/sandbox-cli
 ```
 
 ## Usage
 
 ```sh
 # Any command in the sandbox
-sandbox run -- bash
-sandbox run -- sh -c 'echo $HOME; ls /workspace'
+sandbox-cli run -- bash
+sandbox-cli run -- sh -c 'echo $HOME; ls /workspace'
 
 # See the exact docker command without running it
-sandbox run --dry-run -- npm test
+sandbox-cli run --dry-run -- npm test
 
 # AI agents (forward their API key from your host env only if it's set)
-ANTHROPIC_API_KEY=... sandbox claude
-ANTHROPIC_API_KEY=... sandbox claude --dangerously-skip-permissions
-OPENAI_API_KEY=...    sandbox codex exec 'run the tests'
+ANTHROPIC_API_KEY=... sandbox-cli claude
+ANTHROPIC_API_KEY=... sandbox-cli claude --dangerously-skip-permissions
+OPENAI_API_KEY=...    sandbox-cli codex exec 'run the tests'
 
 # Scaffold a project config
-sandbox init
+sandbox-cli init
 ```
 
 ### Passing flags to the agent
 
-For `sandbox claude` / `sandbox codex`, **everything you type is forwarded to the
-agent** — so `sandbox claude --dangerously-skip-permissions` just works, and there
+For `sandbox-cli claude` / `sandbox-cli codex`, **everything you type is forwarded to the
+agent** — so `sandbox-cli claude --dangerously-skip-permissions` just works, and there
 are no collisions with sandbox's own flags. To set a sandbox option for a wrapped
 agent, put it before a `--` separator:
 
 ```sh
-sandbox claude --project ~/app -- --dangerously-skip-permissions
-sandbox codex  --no-tty       -- exec 'run the tests'
+sandbox-cli claude --project ~/app -- --dangerously-skip-permissions
+sandbox-cli codex  --no-tty       -- exec 'run the tests'
 ```
 
-`sandbox run` uses the opposite default: sandbox flags first, the command after `--`
-(`sandbox run --dry-run -- npm test`).
+`sandbox-cli run` uses the opposite default: sandbox flags first, the command after `--`
+(`sandbox-cli run --dry-run -- npm test`).
 
 ### Persistent agent login
 
-`sandbox claude` / `sandbox codex` **persist the agent's login by default**, so you
+`sandbox-cli claude` / `sandbox-cli codex` **persist the agent's login by default**, so you
 authenticate once and it survives the throwaway containers. Each agent's config dir
 is bind-mounted from a dedicated, sandbox-owned host directory:
 
 ```
-~/.config/sandbox/agents/claude  ->  /sandbox/home/.claude   (sandbox claude)
-~/.config/sandbox/agents/codex   ->  /sandbox/home/.codex    (sandbox codex)
+~/.config/sandbox/agents/claude  ->  /sandbox/home/.claude   (sandbox-cli claude)
+~/.config/sandbox/agents/codex   ->  /sandbox/home/.codex    (sandbox-cli codex)
 ```
 
 This is **separate from your host `~/.claude`** — the sandbox never reads or writes
-your real Claude/Codex config. The first `sandbox claude` prompts you to log in;
+your real Claude/Codex config. The first `sandbox-cli claude` prompts you to log in;
 subsequent runs reuse the stored credentials. Opt out for a one-off, throwaway
 session with `--no-persist-auth`:
 
 ```sh
-sandbox claude --no-persist-auth
+sandbox-cli claude --no-persist-auth
 ```
 
 The first run builds the `sandbox-base` image (Node + git + common tools, with
@@ -107,7 +107,7 @@ Claude Code and Codex pre-installed). Rebuild with `--build`.
 
 Merged in precedence order (later wins): built-in defaults →
 `~/.config/sandbox/config.yaml` → nearest `.sandbox.yaml` (walking up from cwd) →
-CLI flags. Run `sandbox config show` to see the effective config.
+CLI flags. Run `sandbox-cli config show` to see the effective config.
 
 ```yaml
 # .sandbox.yaml

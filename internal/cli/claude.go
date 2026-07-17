@@ -19,16 +19,16 @@ func newClaudeCmd() *cobra.Command {
 		Use:   "claude [sandbox-flags --] [claude-args...]",
 		Short: "Run Claude Code inside the sandbox",
 		Long: "Runs `claude` inside the sandbox. Everything you pass is forwarded to\n" +
-			"claude, so `sandbox claude --dangerously-skip-permissions` just works. Sandbox\n" +
+			"claude, so `sandbox-cli claude --dangerously-skip-permissions` just works. Sandbox\n" +
 			"options (leading --flags below, or before a `--` separator) are consumed first.\n\n" +
 			"Your Claude login is persisted by default in a sandbox-owned directory\n" +
 			"(~/.config/sandbox/agents/claude, separate from your host ~/.claude), so you\n" +
 			"log in once. Use --no-persist-auth for a throwaway session.\n\n" +
 			"Forwards ANTHROPIC_API_KEY and related variables from your host environment\n" +
 			"only if they are set. No other host files are mounted unless you pass --mount.",
-		Example: "  sandbox claude\n" +
-			"  sandbox claude --dangerously-skip-permissions\n" +
-			"  sandbox claude --project ~/app -- --dangerously-skip-permissions",
+		Example: "  sandbox-cli claude\n" +
+			"  sandbox-cli claude --dangerously-skip-permissions\n" +
+			"  sandbox-cli claude --project ~/app -- --dangerously-skip-permissions",
 		// Forward unknown agent flags instead of rejecting them; sandbox flags are
 		// parsed manually from the pre-`--` portion in runWrapper.
 		DisableFlagParsing: true,

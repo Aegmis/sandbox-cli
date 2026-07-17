@@ -40,7 +40,7 @@ func Load(startDir, explicitPath string) (Config, error) {
 	return cfg, nil
 }
 
-// configRoot is the sandbox config/state directory: $XDG_CONFIG_HOME/sandbox or
+// configRoot is the sandbox-cli config/state directory: $XDG_CONFIG_HOME/sandbox or
 // ~/.config/sandbox. Returns "" if the home directory cannot be determined.
 func configRoot() string {
 	if xdg := os.Getenv("XDG_CONFIG_HOME"); xdg != "" {
@@ -168,8 +168,8 @@ func ExpandTilde(p string) string {
 	return p
 }
 
-// UserConfigPath exposes the resolved user config path for `sandbox config path`.
+// UserConfigPath exposes the resolved user config path for `sandbox-cli config path`.
 func UserConfigPath() string { return userConfigPath() }
 
-// FindProjectConfig exposes project config discovery for `sandbox config path`.
+// FindProjectConfig exposes project config discovery for `sandbox-cli config path`.
 func FindProjectConfig(dir string) string { return findProjectConfig(dir) }

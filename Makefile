@@ -1,4 +1,4 @@
-BINARY := sandbox
+BINARY := sandbox-cli
 PKG := github.com/amitghadge/sandbox-cli
 VERSION ?= $(shell git describe --tags --always 2>/dev/null || echo dev)
 LDFLAGS := -X $(PKG)/internal/version.Version=$(VERSION)
@@ -6,10 +6,10 @@ LDFLAGS := -X $(PKG)/internal/version.Version=$(VERSION)
 .PHONY: build install test test-integration lint fmt clean
 
 build:
-	go build -ldflags "$(LDFLAGS)" -o bin/$(BINARY) ./cmd/sandbox
+	go build -ldflags "$(LDFLAGS)" -o bin/$(BINARY) ./cmd/sandbox-cli
 
 install:
-	go install -ldflags "$(LDFLAGS)" ./cmd/sandbox
+	go install -ldflags "$(LDFLAGS)" ./cmd/sandbox-cli
 
 test:
 	go test ./...

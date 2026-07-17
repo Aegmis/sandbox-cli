@@ -1,6 +1,6 @@
-# Multi-stage build for the `sandbox` binary itself.
+# Multi-stage build for the `sandbox-cli` binary itself.
 #
-# Note: this builds/ships the CLI. At runtime `sandbox` shells out to the host
+# Note: this builds/ships the CLI. At runtime `sandbox-cli` shells out to the host
 # `docker` CLI, so to actually run it from a container you'd mount the docker
 # socket and provide a docker client — but the common use of this image is just
 # to produce the binary (see the `export` note at the bottom).
@@ -24,17 +24,17 @@ COPY . .
 RUN CGO_ENABLED=0 go build \
       -trimpath \
       -ldflags "-s -w -X github.com/amitghadge/sandbox-cli/internal/version.Version=${VERSION}" \
-      -o /out/sandbox ./cmd/sandbox
+      -o /out/sandbox-cli ./cmd/sandbox-cli
 
 # ---- runtime stage ----
-# Includes the docker CLI so `sandbox` can talk to a mounted docker socket.
+# Includes the docker CLI so `sandbox-cli` can talk to a mounted docker socket.
 FROM docker:cli AS runtime
-COPY --from=build /out/sandbox /usr/local/bin/sandbox
-ENTRYPOINT ["sandbox"]
+COPY --from=build /out/sandbox-cli /usr/local/bin/sandbox-cli
+ENTRYPOINT ["sandbox-cli"]
 
 # ---- export stage ----
 # Minimal scratch image carrying only the binary, for extracting it out:
 #   docker build --target export --output type=local,dest=./bin .
-# -> ./bin/sandbox
+# -> ./bin/sandbox-cli
 FROM scratch AS export
-COPY --from=build /out/sandbox /sandbox
+COPY --from=build /out/sandbox-cli /sandbox-cli

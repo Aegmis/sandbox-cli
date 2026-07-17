@@ -42,7 +42,7 @@ func Build(ctx context.Context, dockerBin, ref string) error {
 		return fmt.Errorf("writing Dockerfile: %w", err)
 	}
 
-	fmt.Fprintf(os.Stderr, "sandbox: building base image %s (first run only)...\n", ref)
+	fmt.Fprintf(os.Stderr, "sandbox-cli: building base image %s (first run only)...\n", ref)
 	cmd := exec.CommandContext(ctx, dockerBin, "build", "-t", ref, "-f", dfPath, tmp)
 	cmd.Stdout = os.Stderr
 	cmd.Stderr = os.Stderr
