@@ -61,6 +61,11 @@ func userConfigPath() string {
 	return filepath.Join(r, "config.yaml")
 }
 
+// ConfigRoot exposes the sandbox config/state directory for callers that need to
+// place auxiliary files (e.g. generated managed-settings). Returns "" if the
+// home directory cannot be determined.
+func ConfigRoot() string { return configRoot() }
+
 // AgentStateDir returns the dedicated host directory that persists a named
 // agent's state (credentials, sessions) across ephemeral containers, e.g.
 // ~/.config/sandbox/agents/claude. It is sandbox-owned and never the host's real

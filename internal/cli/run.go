@@ -82,8 +82,11 @@ func splitWrapperArgs(cmd *cobra.Command, args []string) (sandboxFlags, guest []
 
 // runWrapper implements the claude/codex subcommands. Flag parsing is disabled
 // on these commands (so unknown agent flags are not rejected); sandbox flags are
-// parsed manually from the leading sandbox-flag run.
-func runWrapper(cmd *cobra.Command, rf *runFlags, args []string, agent string, envAllow []string) error {
+// parsed manually from the leading sandbox-flag run. agentCmd is the container
+// command prefix (e.g. ["codex"], or a bootstrap that execs claude), to which the
+// guest args are appended. afterParse, if set, runs once sandbox flags are known
+// (used to add flag-dependent mounts).
+func runWrapper(cmd *cobra.Command, rf *runFlags, args []string, agentCmd, envAllow []string, afterParse func() error) error {
 	// Explicit request for the wrapper's own help.
 	if len(args) == 1 && (args[0] == "-h" || args[0] == "--help") {
 		return cmd.Help()
@@ -92,8 +95,13 @@ func runWrapper(cmd *cobra.Command, rf *runFlags, args []string, agent string, e
 	if err := cmd.Flags().Parse(sflags); err != nil {
 		return err
 	}
+	if afterParse != nil {
+		if err := afterParse(); err != nil {
+			return err
+		}
+	}
 	rf.envAllow = append(rf.envAllow, envAllow...)
-	full := append([]string{agent}, guest...)
+	full := append(append([]string{}, agentCmd...), guest...)
 	return execute(rf, full)
 }
 

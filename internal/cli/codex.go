@@ -28,7 +28,7 @@ func newCodexCmd() *cobra.Command {
 		// parsed manually from the pre-`--` portion in runWrapper.
 		DisableFlagParsing: true,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return runWrapper(cmd, rf, args, "codex", codexEnvAllow)
+			return runWrapper(cmd, rf, args, []string{"codex"}, codexEnvAllow, nil)
 		},
 	}
 	addRunFlags(cmd, rf)

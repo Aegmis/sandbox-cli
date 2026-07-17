@@ -34,6 +34,9 @@ type runFlags struct {
 	// noPersistAuth opts out.
 	persistName   string
 	noPersistAuth bool
+
+	// noStatusline disables the sandbox mem/cpu status line for the claude wrapper.
+	noStatusline bool
 }
 
 // newSession loads config (with the flag override for the config path) and
