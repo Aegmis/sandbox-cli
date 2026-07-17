@@ -20,6 +20,7 @@ type Mount struct {
 // is the single choke point for the isolation invariants.
 type RunSpec struct {
 	Image    string
+	Name     string            // container name (--name); enables `docker stats`, snapshots
 	Workdir  string            // working dir inside the container (e.g. /workspace)
 	Command  []string          // guest argv, e.g. ["claude", "--dangerously-skip-permissions"]
 	TTY      bool              // allocate an interactive pty (-it)
@@ -31,6 +32,10 @@ type RunSpec struct {
 	Env      map[string]string // explicit KEY=VALUE injected into the container
 	EnvNames []string          // names forwarded from the host env (value read at exec time)
 	Mounts   []Mount           // bind mounts (workspace + extras)
+
+	// ShowMetrics enables the live resource bar (memory/CPU/elapsed) for
+	// non-interactive runs. Requires Name to be set.
+	ShowMetrics bool
 }
 
 // Runtime is a container execution backend.

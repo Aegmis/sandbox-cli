@@ -13,6 +13,9 @@ func BuildArgs(s RunSpec) []string {
 	if s.Remove {
 		a = append(a, "--rm")
 	}
+	if s.Name != "" {
+		a = append(a, "--name", s.Name)
+	}
 	if s.TTY {
 		a = append(a, "-it")
 	} else {

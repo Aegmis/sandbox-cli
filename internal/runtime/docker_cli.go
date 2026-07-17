@@ -4,8 +4,12 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"os"
 	"os/exec"
+	"sync"
+
+	"github.com/amitghadge/sandbox-cli/internal/metrics"
 )
 
 // DockerCLI is the MVP Runtime backend. It shells out to the `docker` binary,
@@ -80,10 +84,60 @@ func (d *DockerCLI) Run(ctx context.Context, spec RunSpec) (int, error) {
 	args := BuildArgs(spec)
 	cmd := exec.CommandContext(ctx, d.bin(), args...)
 	cmd.Stdin = os.Stdin
+
+	if spec.ShowMetrics && spec.Name != "" {
+		return d.runWithMetrics(ctx, cmd, spec)
+	}
+
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
+	return exitCodeOf(cmd.Run())
+}
 
-	err := cmd.Run()
+// runWithMetrics forwards the container's output through a sticky footer that
+// shows a live resource gauge, then erases the gauge on exit.
+func (d *DockerCLI) runWithMetrics(_ context.Context, cmd *exec.Cmd, spec RunSpec) (int, error) {
+	footer := metrics.NewTermFooter(os.Stderr)
+	outR, outW := io.Pipe()
+	errR, errW := io.Pipe()
+	cmd.Stdout = outW
+	cmd.Stderr = errW
+
+	var pumps sync.WaitGroup
+	pumps.Add(2)
+	go pump(&pumps, outR, os.Stdout, footer)
+	go pump(&pumps, errR, os.Stderr, footer)
+
+	meter := metrics.NewMeter(d.bin(), spec.Name, footer)
+	meter.Start()
+
+	runErr := cmd.Run()
+
+	// Drain forwarders, then stop the gauge and erase it.
+	outW.Close()
+	errW.Close()
+	pumps.Wait()
+	meter.Stop()
+
+	return exitCodeOf(runErr)
+}
+
+// pump forwards src to dst through the footer until src is exhausted.
+func pump(wg *sync.WaitGroup, src io.Reader, dst *os.File, footer *metrics.TermFooter) {
+	defer wg.Done()
+	buf := make([]byte, 4096)
+	for {
+		n, err := src.Read(buf)
+		if n > 0 {
+			footer.Print(dst, buf[:n])
+		}
+		if err != nil {
+			return
+		}
+	}
+}
+
+func exitCodeOf(err error) (int, error) {
 	if err == nil {
 		return 0, nil
 	}

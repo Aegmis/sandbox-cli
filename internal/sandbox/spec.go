@@ -4,7 +4,9 @@ import (
 	"fmt"
 	"os"
 	"path"
+	"strconv"
 	"strings"
+	"time"
 
 	"github.com/amitghadge/sandbox-cli/internal/config"
 	"github.com/amitghadge/sandbox-cli/internal/runtime"
@@ -21,6 +23,7 @@ type Options struct {
 	Env         []string // --env KEY=VALUE or bare KEY (forward host value)
 	EnvAllow    []string // --env-allow NAME (forward host value if present)
 	TTY         *bool    // --tty/--no-tty; nil => auto-detect
+	NoMetrics   bool     // disable the live resource gauge
 	Command     []string // guest argv
 
 	// AuthPersistDir, when non-empty, is a host directory bind-mounted read-write
@@ -127,20 +130,33 @@ func BuildSpec(cfg config.Config, opts Options) (runtime.RunSpec, error) {
 		tty = *opts.TTY
 	}
 
+	// The live resource gauge is drawn only for non-interactive runs (an
+	// interactive agent TUI owns the terminal) and only when stderr is a terminal
+	// to draw on.
+	showMetrics := !opts.NoMetrics && !tty && isTerminal(os.Stderr)
+
 	return runtime.RunSpec{
-		Image:    image,
-		Workdir:  workdir,
-		Command:  opts.Command,
-		TTY:      tty,
-		Remove:   true,
-		Hostname: cfg.Hostname,
-		Home:     cfg.Home,
-		User:     user,
-		Network:  cfg.NetworkArg(),
-		Env:      env,
-		EnvNames: envNames,
-		Mounts:   mounts,
+		Image:       image,
+		Name:        containerName(),
+		Workdir:     workdir,
+		Command:     opts.Command,
+		TTY:         tty,
+		Remove:      true,
+		Hostname:    cfg.Hostname,
+		Home:        cfg.Home,
+		User:        user,
+		Network:     cfg.NetworkArg(),
+		Env:         env,
+		EnvNames:    envNames,
+		Mounts:      mounts,
+		ShowMetrics: showMetrics,
 	}, nil
+}
+
+// containerName returns a unique, docker-valid container name. A stable prefix
+// makes sandbox containers easy to spot (and, later, filter for `stats`).
+func containerName() string {
+	return "sandbox-" + strconv.FormatInt(time.Now().UnixNano(), 36)
 }
 
 func workdirTargetOrDefault(workdir string) string {

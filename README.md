@@ -88,6 +88,22 @@ sandbox-cli claude --no-persist-auth
 The first run builds the `sandbox-base` image (Node + git + common tools, with
 Claude Code and Codex pre-installed). Rebuild with `--build`.
 
+### Live resource gauge
+
+For **non-interactive** runs (`--no-tty`, or piped/redirected stdio), sandbox-cli
+pins a live resource gauge to the bottom of the terminal showing the container's
+memory, CPU, and elapsed time — output scrolls above it, and it's erased when the
+run ends:
+
+```
+work line 3
+ sandbox-cli │ mem 512MiB/7.6GiB ▕▓░░░░░░▏ cpu 82% · 0m47s
+```
+
+It is intentionally **not** drawn during an interactive agent session (Claude/Codex
+own the full screen). Disable it with `--no-metrics`. Measurement only — no limits
+are placed on the container.
+
 ### Common flags (run / claude / codex)
 
 | Flag | Meaning |
@@ -102,6 +118,7 @@ Claude Code and Codex pre-installed). Rebuild with `--build`.
 | `--tty` / `--no-tty` | Force TTY on/off (default: auto-detect) |
 | `--dry-run` | Print the docker command and exit |
 | `--build` | Force a rebuild of the base image |
+| `--no-metrics` | Disable the live resource gauge (non-interactive runs) |
 
 ## Configuration
 

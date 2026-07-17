@@ -15,18 +15,19 @@ import (
 
 // runFlags holds the persistent flag values shared by run/claude/codex.
 type runFlags struct {
-	project  string
-	image    string
-	workdir  string
-	user     string
-	mounts   []string
-	env      []string
-	envAllow []string
-	tty      bool
-	noTTY    bool
-	config   string
-	build    bool
-	dryRun   bool
+	project   string
+	image     string
+	workdir   string
+	user      string
+	mounts    []string
+	env       []string
+	envAllow  []string
+	tty       bool
+	noTTY     bool
+	config    string
+	build     bool
+	dryRun    bool
+	noMetrics bool
 
 	// Auth persistence (agent wrappers only). persistName is the sandbox-owned
 	// host state dir name (e.g. "claude"); persistSubdir is the agent's config
@@ -64,6 +65,7 @@ func newSession(rf *runFlags) (*sandbox.Session, sandbox.Options, error) {
 		Env:         rf.env,
 		EnvAllow:    rf.envAllow,
 		TTY:         ttyOverride(rf),
+		NoMetrics:   rf.noMetrics,
 	}
 
 	// Persist agent auth in a dedicated, sandbox-owned host dir mounted at the
@@ -110,6 +112,7 @@ func addRunFlags(cmd *cobra.Command, rf *runFlags) {
 	f.StringVarP(&rf.config, "config", "c", "", "explicit config file path")
 	f.BoolVar(&rf.build, "build", false, "force rebuild of the base image")
 	f.BoolVar(&rf.dryRun, "dry-run", false, "print the docker command and exit")
+	f.BoolVar(&rf.noMetrics, "no-metrics", false, "disable the live resource gauge (non-interactive runs)")
 
 	// Flags before -- are ours; everything after -- is the guest command verbatim.
 	f.SetInterspersed(false)
