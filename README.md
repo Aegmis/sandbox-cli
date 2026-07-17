@@ -91,6 +91,11 @@ sandbox-cli claude --no-persist-auth
 The first run builds the `sandbox-base` image (Node + git + common tools, with
 Claude Code and Codex pre-installed). Rebuild with `--build`.
 
+**Claude Code stays current.** The baked copy is a fallback; on first use
+`sandbox-cli claude` installs Claude Code into the persisted HOME (`~/.local`, via
+the official installer) where it is writable, so it self-updates from then on and
+matches the version you'd get on the host — no rebuild needed.
+
 ### Live resource gauge
 
 For **non-interactive** runs (`--no-tty`, or piped/redirected stdio), sandbox-cli
@@ -115,8 +120,18 @@ The summary is sampled in the background without touching the screen, and is ski
 for containers too short-lived to sample. Disable all of this with `--no-metrics`.
 Measurement only — no limits are placed on the container.
 
-**To watch memory/CPU live during an interactive agent session**, run `sandbox-cli
-stats` in a second terminal — a refreshing table of all running sandbox containers:
+**Inside a `sandbox-cli claude` session**, a status line at the bottom of the Claude
+UI shows the container's live memory/CPU (via Claude Code's `statusLine`, injected
+through a managed-settings file that never touches your own Claude settings):
+
+```
+⬢ sandbox · mem 412MiB/7.6GiB · cpu 82%
+```
+
+Disable it with `--no-statusline`.
+
+**To watch memory/CPU live for any run**, run `sandbox-cli stats` in a second
+terminal — a refreshing table of all running sandbox containers:
 
 ```sh
 sandbox-cli stats            # live table, refreshes every 2s, Ctrl-C to exit
