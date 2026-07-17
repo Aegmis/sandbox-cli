@@ -59,6 +59,9 @@ go vet ./...              # must be clean
 | credential broker: resolve file/cmd/env, forward by name (not on argv), inject at run time | `TestResolve_*`, `TestBuildSpec_SecretsForwardedByName`, `TestBuildSpec_BadSecretFlag`, `TestInjectSecrets_SetsEnvFromSources`, `TestValidate_Secrets`, `TestLoad_SecretsMergePerKey` | `internal/creds`, `internal/sandbox`, `internal/config` |
 | git worktrees: branch-name sanitize, stable namespaced path, create/reuse/list/remove (real git) | `TestSanitizeBranch`, `TestWorktreePath_StableAndNamespaced`, `TestResolveAndList_RealGit`, `TestResolve_NotAGitRepo` | `internal/worktree` |
 | ergonomics: `--add-host`, `--host-gateway`, `--git` (safe.directory env + identity forwarded by name) | `TestBuildArgs_AddHost`, `TestBuildSpec_HostGatewayAndAddHosts`, `TestBuildSpec_GitIdentity` | `internal/runtime`, `internal/sandbox` |
+| **[integration]** egress allowlist drops privileges + blocks non-allowlisted host | `TestEgressAllowlist` | `internal/cli` |
+| **[integration]** `--git` forwards host identity + trusts workspace in-container | `TestGitIdentity` | `internal/cli` |
+| **[integration]** `--host-gateway` maps host.docker.internal in /etc/hosts | `TestHostGateway` | `internal/cli` |
 | wrapper arg splitting (claude/codex flag passthrough) | `TestSplitWrapperArgs`, `TestClaudeWrapperParsesWithoutError` | `internal/cli` |
 | `--dry-run` golden (asserts `--rm`, fake HOME, no host-home mount) | `TestDryRunInvariants` | `internal/cli` |
 | metrics parsing / bar / duration / humanBytes / footer / summary | `TestParseBytes`, `TestParseMemUsage`, `TestBar`, `TestFormatDuration`, `TestHumanBytes`, `TestFooterForwardsOutputIntact`, `TestMeterSummary` | `internal/metrics` |

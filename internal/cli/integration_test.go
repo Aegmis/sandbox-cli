@@ -163,6 +163,79 @@ func TestEgressAllowlist(t *testing.T) {
 	}
 }
 
+// TestGitIdentity proves --git forwards the host git identity into the container
+// and marks the workspace as trusted. It pins a deterministic host identity via
+// an isolated global git config so the assertion doesn't depend on the CI user's
+// real git settings.
+func TestGitIdentity(t *testing.T) {
+	proj := t.TempDir()
+
+	gc := filepath.Join(t.TempDir(), "gitconfig")
+	if err := os.WriteFile(gc, []byte("[user]\n\tname = Test User\n\temail = test@example.com\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("GIT_CONFIG_GLOBAL", gc)
+	t.Setenv("GIT_CONFIG_SYSTEM", "/dev/null")
+	// Register cleanup for the vars injectGitIdentity sets on this process.
+	for _, n := range []string{"GIT_AUTHOR_NAME", "GIT_AUTHOR_EMAIL", "GIT_COMMITTER_NAME", "GIT_COMMITTER_EMAIL"} {
+		t.Setenv(n, "")
+	}
+
+	sess := newTestSession(t, config.Default())
+	_, err := sess.Run(context.Background(), sandbox.Options{
+		Project:     proj,
+		TTY:         ptr(false),
+		GitIdentity: true,
+		Command: []string{"sh", "-c",
+			"printf %s \"$GIT_AUTHOR_EMAIL\" > /workspace/email.txt; " +
+				"git config --get safe.directory > /workspace/safe.txt"},
+	}, false)
+	if err != nil {
+		t.Fatalf("run error: %v", err)
+	}
+
+	email, err := os.ReadFile(filepath.Join(proj, "email.txt"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := strings.TrimSpace(string(email)); got != "test@example.com" {
+		t.Errorf("GIT_AUTHOR_EMAIL in container = %q, want test@example.com", got)
+	}
+
+	safe, err := os.ReadFile(filepath.Join(proj, "safe.txt"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := strings.TrimSpace(string(safe)); got != "*" {
+		t.Errorf("git safe.directory in container = %q, want *", got)
+	}
+}
+
+// TestHostGateway proves --host-gateway injects the host.docker.internal mapping
+// so an agent can reach host services. It checks the mapping lands in the
+// container's /etc/hosts (deterministic; does not require the gateway to be
+// reachable from CI).
+func TestHostGateway(t *testing.T) {
+	proj := t.TempDir()
+	sess := newTestSession(t, config.Default())
+	_, err := sess.Run(context.Background(), sandbox.Options{
+		Project:     proj,
+		TTY:         ptr(false),
+		HostGateway: true,
+		Command:     []string{"sh", "-c", "grep host.docker.internal /etc/hosts > /workspace/hosts.txt || true"},
+	}, false)
+	if err != nil {
+		t.Fatalf("run error: %v", err)
+	}
+	hosts, err := os.ReadFile(filepath.Join(proj, "hosts.txt"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(hosts), "host.docker.internal") {
+		t.Errorf("host.docker.internal not mapped in /etc/hosts, got %q", string(hosts))
+	}
+}
+
 // dockerAvailable is a cheap precondition guard used by TestMain-style skips.
 func dockerAvailable() bool {
 	cmd := exec.Command("docker", "info")
