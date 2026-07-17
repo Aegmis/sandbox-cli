@@ -17,6 +17,7 @@ import (
 	"github.com/amitghadge/sandbox-cli/internal/image"
 	"github.com/amitghadge/sandbox-cli/internal/runtime"
 	"github.com/amitghadge/sandbox-cli/internal/sandbox"
+	"github.com/amitghadge/sandbox-cli/internal/worktree"
 )
 
 func newTestSession(t *testing.T, cfg config.Config) *sandbox.Session {
@@ -310,6 +311,75 @@ func TestCachePersistsAndWritable(t *testing.T) {
 	// Run 2: a fresh --rm container sees the persisted probe.
 	if got := runCache("cat " + probe); got != "cache-ok" {
 		t.Errorf("run 2: cache did not persist, read %q, want cache-ok", got)
+	}
+}
+
+// TestWorktreeEndToEnd proves the full --worktree path: a worktree is created for
+// a branch and the container mounts that branch's checkout at /workspace (so the
+// agent sees the branch's content, not the main working tree's).
+func TestWorktreeEndToEnd(t *testing.T) {
+	if !dockerAvailable() {
+		t.Skip("docker daemon not available")
+	}
+	git, err := exec.LookPath("git")
+	if err != nil {
+		t.Skip("git not available")
+	}
+	t.Setenv("XDG_CONFIG_HOME", t.TempDir()) // isolate the managed worktree location
+
+	repo := t.TempDir()
+	gitRun := func(args ...string) {
+		t.Helper()
+		cmd := exec.Command(git, args...)
+		cmd.Dir = repo
+		if out, e := cmd.CombinedOutput(); e != nil {
+			t.Fatalf("git %v: %v\n%s", args, e, out)
+		}
+	}
+	// main has marker "on-main"; feature/x has marker "on-feature".
+	gitRun("init", "-q")
+	gitRun("config", "user.email", "t@example.com")
+	gitRun("config", "user.name", "t")
+	if err := os.WriteFile(filepath.Join(repo, "marker.txt"), []byte("on-main\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	gitRun("add", ".")
+	gitRun("commit", "-qm", "main")
+	gitRun("checkout", "-q", "-b", "feature/x")
+	if err := os.WriteFile(filepath.Join(repo, "marker.txt"), []byte("on-feature\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	gitRun("commit", "-qam", "feature")
+	gitRun("checkout", "-q", "-") // free feature/x so it can be checked out in a worktree
+
+	info, err := worktree.Resolve(repo, "feature/x")
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() {
+		// Force: the container leaves an untracked file in the worktree.
+		exec.Command(git, "-C", repo, "worktree", "remove", "--force", info.Path).Run()
+	})
+	if !info.Created {
+		t.Fatalf("expected the worktree to be created")
+	}
+
+	// Run the sandbox in the worktree and have the container report what it sees
+	// mounted at /workspace.
+	sess := newTestSession(t, config.Default())
+	if _, err := sess.Run(context.Background(), sandbox.Options{
+		Project: info.Path,
+		TTY:     ptr(false),
+		Command: []string{"sh", "-c", "cat /workspace/marker.txt > /workspace/seen.txt"},
+	}, false); err != nil {
+		t.Fatalf("run error: %v", err)
+	}
+	seen, err := os.ReadFile(filepath.Join(info.Path, "seen.txt"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := strings.TrimSpace(string(seen)); got != "on-feature" {
+		t.Errorf("container mounted %q at /workspace; want the feature/x branch content on-feature", got)
 	}
 }
 

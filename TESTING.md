@@ -64,6 +64,7 @@ go vet ./...              # must be clean
 | **[integration]** `--host-gateway` maps host.docker.internal in /etc/hosts | `TestHostGateway` | `internal/cli` |
 | **[integration]** `--secret` delivers file/env/cmd sources into the container | `TestSecretDelivery` | `internal/cli` |
 | **[integration]** `--cache` non-root write + persistence across --rm runs | `TestCachePersistsAndWritable` | `internal/cli` |
+| **[integration]** `--worktree` mounts the branch's checkout at /workspace | `TestWorktreeEndToEnd` | `internal/cli` |
 | wrapper arg splitting (claude/codex flag passthrough) | `TestSplitWrapperArgs`, `TestClaudeWrapperParsesWithoutError` | `internal/cli` |
 | `--dry-run` golden (asserts `--rm`, fake HOME, no host-home mount) | `TestDryRunInvariants` | `internal/cli` |
 | metrics parsing / bar / duration / humanBytes / footer / summary | `TestParseBytes`, `TestParseMemUsage`, `TestBar`, `TestFormatDuration`, `TestHumanBytes`, `TestFooterForwardsOutputIntact`, `TestMeterSummary` | `internal/metrics` |
