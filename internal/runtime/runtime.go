@@ -33,6 +33,24 @@ type RunSpec struct {
 	EnvNames []string          // names forwarded from the host env (value read at exec time)
 	Mounts   []Mount           // bind mounts (workspace + extras)
 
+	// Entrypoint overrides the image ENTRYPOINT (docker --entrypoint). "" leaves
+	// the image default. Used by the egress allowlist, where a firewall-setup
+	// wrapper must run (as root, with NET_ADMIN) before dropping to the target
+	// user and exec'ing the guest command.
+	Entrypoint string
+
+	// Container hardening, resolved from config.Security (+ flags). These are the
+	// second half of the isolation story (alongside the mount/HOME invariants):
+	// they shrink what the guest can do even before it reaches the container
+	// boundary. All are emitted by BuildArgs and asserted in args_test.go.
+	NoNewPrivileges bool     // --security-opt no-new-privileges (block setuid escalation)
+	Seccomp         string   // --security-opt seccomp=…; "" keeps docker's default profile
+	CapDrop         []string // --cap-drop each, e.g. ["ALL"]
+	CapAdd          []string // --cap-add each (capabilities added back)
+	PidsLimit       int64    // --pids-limit; <=0 omits the flag (no limit)
+	Memory          string   // --memory, e.g. "2g"; "" omits (no limit)
+	CPUs            string   // --cpus, e.g. "1.5"; "" omits (no limit)
+
 	// ShowMetrics enables the live resource bar (memory/CPU/elapsed) for
 	// non-interactive runs. Requires Name to be set.
 	ShowMetrics bool

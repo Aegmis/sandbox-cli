@@ -161,6 +161,10 @@ sandbox-dk0gtrd15s2g  412MiB / 7.6GiB   82.00%  24
 | `--dry-run` | Print the docker command and exit |
 | `--build` | Force a rebuild of the base image |
 | `--no-metrics` | Disable the live resource gauge (non-interactive runs) |
+| `--memory` | Container memory limit, e.g. `2g` (default: unlimited) |
+| `--cpus` | Container CPU limit, e.g. `1.5` (default: unlimited) |
+| `--no-hardening` | Disable the default cap-drop / no-new-privileges / pids-limit (debug) |
+| `--allow` | Enable the egress allowlist and permit a domain, e.g. `--allow example.com` (repeatable; baseline registries always allowed) |
 
 ## Configuration
 
@@ -170,7 +174,7 @@ CLI flags. Run `sandbox-cli config show` to see the effective config.
 
 ```yaml
 # .sandbox.yaml
-image: sandbox-base:0.1.0
+image: sandbox-base:0.1.1
 workdir: /workspace
 user: sandbox           # non-root; agents refuse --dangerously-skip-permissions as root
 mounts:
@@ -181,7 +185,15 @@ env_allow:            # default-deny: only these host vars are forwarded, if set
   - ANTHROPIC_API_KEY
   - OPENAI_API_KEY
 network:
-  mode: default       # default | none
+  mode: default       # default | none | allowlist
+  allow:              # allowlist mode only: extra domains beyond the baseline
+    - internal.registry.example.com
+security:             # secure-by-default hardening; override per project/user
+  no_new_privileges: true     # block setuid privilege escalation
+  cap_drop: [ALL]             # drop all Linux capabilities (cap_add: [] to add back)
+  pids_limit: 1024            # fork-bomb guard; 0 disables
+  memory: ""                  # e.g. 2g — opt-in, empty = unlimited
+  cpus: ""                    # e.g. 1.5 — opt-in, empty = unlimited
 ```
 
 ## Security model (MVP)
@@ -195,9 +207,35 @@ network:
   ship a suggested allowlist (e.g. `ANTHROPIC_API_KEY`) applied only if the value
   is set. For OAuth-file logins, mount just the agent's own dir, e.g.
   `--mount ~/.claude:/sandbox/home/.claude:rw`.
+- **Hardened container by default.** Every run drops all Linux capabilities
+  (`--cap-drop=ALL`), forbids privilege escalation (`--security-opt
+  no-new-privileges`), and caps process count (`--pids-limit`) to blunt fork
+  bombs. Tune these under `security:` in config; add memory/CPU limits with
+  `--memory` / `--cpus`; or use `--no-hardening` to fall back to the unhardened
+  behavior while debugging.
+- **Optional egress allowlist.** With `network: allowlist` (or `--allow DOMAIN`),
+  outbound traffic is default-denied by an in-container firewall that permits only
+  DNS, established flows, a baseline of agent APIs + package registries
+  (`api.anthropic.com`, `registry.npmjs.org`, `pypi.org`, `github.com`, …), and any
+  domains you add. This lets `npm install` / `pip install` / `git` keep working
+  while blocking arbitrary exfiltration from a prompt-injected agent. The firewall
+  is programmed at startup (needs `NET_ADMIN`, added only in this mode) and then
+  the run drops back to the non-root `sandbox` user; it fails closed if setup
+  errors. Requires a Linux-capable Docker host (iptables); resolves domains to IPs
+  once at startup, so extremely dynamic CDNs may need extra `allow` entries.
 
-Out of scope for this milestone (clean seams exist in the code): credential
-broker, network egress allowlists, snapshots, risk scoring, and audit trails.
+Out of scope for this milestone (clean seams exist in the code): a credential
+broker, per-request egress policies, snapshots, risk scoring, and audit trails.
+
+## Alternatives & prior art
+
+Running an agent in a disposable container is a crowded space: there are official
+options (Docker Sandboxes' `sbx`, Anthropic's devcontainer and Sandbox Runtime,
+Codex's built-in OS sandbox) and many open-source twins. sandbox-cli's edge is code
+quality and a focused feature set (tested isolation invariants, default-deny env,
+dual-agent wrapping, observability) rather than a hard security boundary — for that,
+reach for microVM tooling. See [docs/COMPARISON.md](docs/COMPARISON.md) for the full
+landscape and an honest comparison.
 
 ## Development
 

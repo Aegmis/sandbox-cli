@@ -1,6 +1,9 @@
 package runtime
 
-import "sort"
+import (
+	"sort"
+	"strconv"
+)
 
 // BuildArgs converts a RunSpec into the argument vector for `docker`. It is a
 // pure function (no I/O, deterministic) so the isolation invariants can be
@@ -29,6 +32,33 @@ func BuildArgs(s RunSpec) []string {
 	}
 	if s.Network != "" {
 		a = append(a, "--network", s.Network)
+	}
+
+	// Container hardening. Order is fixed for deterministic output.
+	if s.NoNewPrivileges {
+		a = append(a, "--security-opt", "no-new-privileges")
+	}
+	if s.Seccomp != "" {
+		a = append(a, "--security-opt", "seccomp="+s.Seccomp)
+	}
+	for _, c := range s.CapDrop {
+		a = append(a, "--cap-drop", c)
+	}
+	for _, c := range s.CapAdd {
+		a = append(a, "--cap-add", c)
+	}
+	if s.PidsLimit > 0 {
+		a = append(a, "--pids-limit", strconv.FormatInt(s.PidsLimit, 10))
+	}
+	if s.Memory != "" {
+		a = append(a, "--memory", s.Memory)
+	}
+	if s.CPUs != "" {
+		a = append(a, "--cpus", s.CPUs)
+	}
+
+	if s.Entrypoint != "" {
+		a = append(a, "--entrypoint", s.Entrypoint)
 	}
 
 	for _, m := range s.Mounts {

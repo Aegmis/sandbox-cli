@@ -12,7 +12,7 @@ const scaffoldConfig = `# sandbox configuration (https://github.com/amitghadge/s
 # Only /workspace (this project) is mounted into the container. HOME is fake and
 # ephemeral. Uncomment and edit fields as needed.
 
-# image: sandbox-base:0.1.0
+# image: sandbox-base:0.1.1
 # workdir: /workspace
 # user: sandbox         # sandbox (non-root default) | root
 #                       # agents refuse --dangerously-skip-permissions as root
@@ -31,9 +31,24 @@ env_allow:
   - ANTHROPIC_API_KEY
   - OPENAI_API_KEY
 
-# Networking: default (bridge) | none.
+# Networking: default (bridge) | none | allowlist.
+# In allowlist mode, outbound traffic is default-denied except DNS, established
+# flows, a baseline of agent APIs + package registries, and the domains below —
+# so npm/pip/git keep working while blocking arbitrary exfiltration. (Also
+# available ad hoc via --allow DOMAIN.)
 network:
   mode: default
+  # allow:
+  #   - internal.registry.example.com
+
+# Container hardening (secure-by-default; shown here to make it tunable). Pointer
+# fields are tri-state: omit to keep the default, set to override.
+# security:
+#   no_new_privileges: true   # block setuid privilege escalation
+#   cap_drop: [ALL]           # drop all Linux capabilities (cap_add: [] to add back)
+#   pids_limit: 1024          # fork-bomb guard; 0 disables
+#   memory: ""                # e.g. 2g — opt-in, empty = unlimited
+#   cpus: ""                  # e.g. 1.5 — opt-in, empty = unlimited
 `
 
 func newInitCmd() *cobra.Command {

@@ -16,12 +16,134 @@ func TestDefault(t *testing.T) {
 	}
 }
 
+func TestDefault_Security(t *testing.T) {
+	s := Default().Security
+	if !s.NoNewPriv() {
+		t.Error("no-new-privileges should default on")
+	}
+	if len(s.CapDrop) != 1 || s.CapDrop[0] != "ALL" {
+		t.Errorf("CapDrop default = %v, want [ALL]", s.CapDrop)
+	}
+	if s.Pids() != 1024 {
+		t.Errorf("PidsLimit default = %d, want 1024", s.Pids())
+	}
+	// Resource limits are opt-in (unlimited by default).
+	if s.Memory != "" || s.CPUs != "" {
+		t.Errorf("expected no default memory/cpu limits, got mem=%q cpu=%q", s.Memory, s.CPUs)
+	}
+}
+
+func TestLoad_SecurityOverride(t *testing.T) {
+	dir := t.TempDir()
+	cfgFile := filepath.Join(dir, projectFileName)
+	// A config can both disable a default-on setting and clear an inherited slice.
+	content := "security:\n  no_new_privileges: false\n  cap_drop: []\n  pids_limit: 4096\n  memory: 4g\n"
+	if err := os.WriteFile(cfgFile, []byte(content), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("XDG_CONFIG_HOME", filepath.Join(dir, "empty-xdg"))
+
+	cfg, err := Load(dir, "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cfg.Security.NoNewPriv() {
+		t.Error("expected no_new_privileges disabled by config")
+	}
+	if len(cfg.Security.CapDrop) != 0 {
+		t.Errorf("expected cap_drop cleared to empty, got %v", cfg.Security.CapDrop)
+	}
+	if cfg.Security.Pids() != 4096 {
+		t.Errorf("PidsLimit = %d, want 4096", cfg.Security.Pids())
+	}
+	if cfg.Security.Memory != "4g" {
+		t.Errorf("Memory = %q, want 4g", cfg.Security.Memory)
+	}
+}
+
+func TestLoad_NetworkAllowlistFromConfig(t *testing.T) {
+	dir := t.TempDir()
+	cfgFile := filepath.Join(dir, projectFileName)
+	content := "network:\n  mode: allowlist\n  allow:\n    - internal.example.com\n"
+	if err := os.WriteFile(cfgFile, []byte(content), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("XDG_CONFIG_HOME", filepath.Join(dir, "empty-xdg"))
+
+	cfg, err := Load(dir, "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cfg.Network.Mode != "allowlist" {
+		t.Fatalf("Network.Mode = %q, want allowlist", cfg.Network.Mode)
+	}
+	domains := cfg.Network.EgressDomains()
+	if !containsStr(domains, "internal.example.com") {
+		t.Errorf("configured domain missing: %v", domains)
+	}
+	if !containsStr(domains, "api.anthropic.com") {
+		t.Errorf("baseline domain missing: %v", domains)
+	}
+}
+
 func TestValidate_BadNetwork(t *testing.T) {
 	c := Default()
 	c.Network.Mode = "bogus"
 	if err := c.Validate(); err == nil {
 		t.Error("expected validation error for bad network mode")
 	}
+}
+
+func TestValidate_AllowlistNetworkOK(t *testing.T) {
+	c := Default()
+	c.Network.Mode = "allowlist"
+	c.Network.Allow = []string{"example.com"}
+	if err := c.Validate(); err != nil {
+		t.Errorf("allowlist mode should validate: %v", err)
+	}
+	// Allowlist is bridge networking (no --network flag).
+	if c.NetworkArg() != "" {
+		t.Errorf("NetworkArg = %q, want empty (bridge) for allowlist", c.NetworkArg())
+	}
+}
+
+func TestEgressDomains(t *testing.T) {
+	// Non-allowlist modes contribute no domains.
+	for _, mode := range []string{"", "default", "none"} {
+		if got := (NetworkSpec{Mode: mode, Allow: []string{"x.com"}}).EgressDomains(); got != nil {
+			t.Errorf("mode %q: EgressDomains = %v, want nil", mode, got)
+		}
+	}
+	// Allowlist mode unions the baseline with Allow, de-duped, baseline first.
+	got := (NetworkSpec{Mode: "allowlist", Allow: []string{"example.com", "api.anthropic.com", " "}}).EgressDomains()
+	if len(got) == 0 || got[0] != "api.anthropic.com" {
+		t.Fatalf("EgressDomains = %v, want baseline first", got)
+	}
+	if !containsStr(got, "example.com") {
+		t.Errorf("EgressDomains missing example.com: %v", got)
+	}
+	// api.anthropic.com is in the baseline; listing it again must not duplicate.
+	if n := countStr(got, "api.anthropic.com"); n != 1 {
+		t.Errorf("api.anthropic.com appears %d times, want 1: %v", n, got)
+	}
+	// The blank entry must be dropped.
+	if containsStr(got, "") {
+		t.Errorf("empty domain leaked into %v", got)
+	}
+}
+
+func containsStr(s []string, v string) bool {
+	return countStr(s, v) > 0
+}
+
+func countStr(s []string, v string) int {
+	n := 0
+	for _, x := range s {
+		if x == v {
+			n++
+		}
+	}
+	return n
 }
 
 func TestValidate_BadMountMode(t *testing.T) {

@@ -97,6 +97,63 @@ func TestBuildArgs_Network(t *testing.T) {
 	}
 }
 
+func TestBuildArgs_Hardening(t *testing.T) {
+	got := BuildArgs(RunSpec{
+		Image:           "img",
+		Workdir:         "/w",
+		NoNewPrivileges: true,
+		Seccomp:         "unconfined",
+		CapDrop:         []string{"ALL"},
+		CapAdd:          []string{"NET_BIND_SERVICE"},
+		PidsLimit:       1024,
+		Memory:          "2g",
+		CPUs:            "1.5",
+	})
+	pairs := [][2]string{
+		{"--security-opt", "no-new-privileges"},
+		{"--security-opt", "seccomp=unconfined"},
+		{"--cap-drop", "ALL"},
+		{"--cap-add", "NET_BIND_SERVICE"},
+		{"--pids-limit", "1024"},
+		{"--memory", "2g"},
+		{"--cpus", "1.5"},
+	}
+	for _, p := range pairs {
+		if !hasPair(got, p[0], p[1]) {
+			t.Errorf("expected %s %s, got %v", p[0], p[1], got)
+		}
+	}
+}
+
+func TestBuildArgs_HardeningOmittedWhenUnset(t *testing.T) {
+	got := BuildArgs(RunSpec{Image: "img", Workdir: "/w"})
+	for _, f := range []string{"--security-opt", "--cap-drop", "--cap-add", "--pids-limit", "--memory", "--cpus"} {
+		if containsArg(got, f) {
+			t.Errorf("did not expect %s on a bare spec, got %v", f, got)
+		}
+	}
+	// A zero/negative pids limit must not emit the flag.
+	if containsArg(BuildArgs(RunSpec{Image: "img", Workdir: "/w", PidsLimit: 0}), "--pids-limit") {
+		t.Error("PidsLimit 0 should omit --pids-limit")
+	}
+}
+
+func TestBuildArgs_Entrypoint(t *testing.T) {
+	got := BuildArgs(RunSpec{Image: "img", Workdir: "/w", Entrypoint: "/usr/local/bin/sandbox-firewall"})
+	if !hasPair(got, "--entrypoint", "/usr/local/bin/sandbox-firewall") {
+		t.Errorf("expected --entrypoint, got %v", got)
+	}
+	// The flag must precede the image so docker parses it as a run flag.
+	joined := strings.Join(got, " ")
+	if strings.Index(joined, "--entrypoint") > strings.Index(joined, " img") {
+		t.Errorf("--entrypoint must come before the image: %v", got)
+	}
+	// Omitted by default.
+	if containsArg(BuildArgs(RunSpec{Image: "img", Workdir: "/w"}), "--entrypoint") {
+		t.Error("did not expect --entrypoint on a bare spec")
+	}
+}
+
 // TestBuildArgs_NeverMountsHostHome asserts the core security invariant at the
 // arg level: only the mounts explicitly present in the spec are emitted.
 func TestBuildArgs_OnlyDeclaredMounts(t *testing.T) {

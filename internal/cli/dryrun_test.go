@@ -20,6 +20,10 @@ func TestDryRunInvariants(t *testing.T) {
 		Home:     "/sandbox/home",
 		User:     "root",
 		Mounts:   []runtime.Mount{{Source: "/Users/dev/proj", Target: "/workspace"}},
+
+		NoNewPrivileges: true,
+		CapDrop:         []string{"ALL"},
+		PidsLimit:       1024,
 	}
 	line := dockerCommandLine(spec)
 
@@ -28,6 +32,9 @@ func TestDryRunInvariants(t *testing.T) {
 		"-e HOME=/sandbox/home",
 		"-w /workspace",
 		"type=bind,source=/Users/dev/proj,target=/workspace",
+		"--security-opt no-new-privileges",
+		"--cap-drop ALL",
+		"--pids-limit 1024",
 	}
 	for _, s := range mustContain {
 		if !strings.Contains(line, s) {

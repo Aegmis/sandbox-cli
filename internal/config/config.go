@@ -4,6 +4,7 @@ package config
 
 import (
 	"fmt"
+	"strings"
 
 	"github.com/amitghadge/sandbox-cli/internal/version"
 )
@@ -19,6 +20,37 @@ type Config struct {
 	Env      map[string]string `yaml:"env"`
 	EnvAllow []string          `yaml:"env_allow"`
 	Network  NetworkSpec       `yaml:"network"`
+	Security SecuritySpec      `yaml:"security"`
+}
+
+// SecuritySpec is the container-hardening policy. The pointer fields are
+// tri-state: nil means "not set, use the built-in default" so a project or user
+// config can override a default-on setting to false (which a plain bool cannot
+// express under the non-zero-wins merge). Defaults are secure-by-default (see
+// Default): no-new-privileges on, all capabilities dropped, a pids cap to blunt
+// fork bombs. Resource limits (Memory, CPUs) are opt-in — empty means unlimited,
+// preserving the historical behavior — because an unexpected OOM-kill is worse
+// than an unbounded-but-observed container.
+type SecuritySpec struct {
+	NoNewPrivileges *bool    `yaml:"no_new_privileges"` // --security-opt no-new-privileges (default true)
+	CapDrop         []string `yaml:"cap_drop"`          // --cap-drop each (default ["ALL"])
+	CapAdd          []string `yaml:"cap_add"`           // --cap-add each (default none)
+	PidsLimit       *int64   `yaml:"pids_limit"`        // --pids-limit (default 1024; <=0 disables)
+	Memory          string   `yaml:"memory"`            // --memory, e.g. "2g" (default "" = unlimited)
+	CPUs            string   `yaml:"cpus"`              // --cpus, e.g. "1.5" (default "" = unlimited)
+	Seccomp         string   `yaml:"seccomp"`           // --security-opt seccomp=… ("" = docker default profile)
+}
+
+// NoNewPriv reports whether no-new-privileges should be enabled, defaulting to
+// true when unset.
+func (s SecuritySpec) NoNewPriv() bool { return s.NoNewPrivileges == nil || *s.NoNewPrivileges }
+
+// Pids returns the resolved pids limit, or 0 (no limit) when unset.
+func (s SecuritySpec) Pids() int64 {
+	if s.PidsLimit == nil {
+		return 0
+	}
+	return *s.PidsLimit
 }
 
 // MountSpec is a bind mount declared in config. Host paths may use ~ and may be
@@ -29,9 +61,64 @@ type MountSpec struct {
 	Mode      string `yaml:"mode"` // "ro" | "rw"; empty defaults to "ro"
 }
 
-// NetworkSpec controls container networking. MVP honors only Mode.
+// NetworkSpec controls container networking.
+//
+//   - "default" — the docker bridge; unrestricted egress.
+//   - "none"    — no network at all.
+//   - "allowlist" — bridge networking with a default-deny egress firewall that
+//     permits only the baseline domains (agent APIs + package registries, see
+//     BaselineEgress) plus any listed in Allow. Enforced in-container at startup
+//     (see the sandbox-firewall entrypoint), so it needs NET_ADMIN.
 type NetworkSpec struct {
-	Mode string `yaml:"mode"` // "default" | "none"
+	Mode  string   `yaml:"mode"`  // "default" | "none" | "allowlist"
+	Allow []string `yaml:"allow"` // extra domains permitted in allowlist mode
+}
+
+// baselineEgress is the always-permitted domain set in allowlist mode: the agent
+// APIs plus the common package registries and code hosts, so `npm install`,
+// `pip install`, and `git` keep working out of the box without the user having
+// to enumerate them. Kept deliberately small and auditable.
+var baselineEgress = []string{
+	"api.anthropic.com",
+	"api.openai.com",
+	"registry.npmjs.org",
+	"pypi.org",
+	"files.pythonhosted.org",
+	"github.com",
+	"codeload.github.com",
+	"objects.githubusercontent.com",
+	"raw.githubusercontent.com",
+}
+
+// BaselineEgress returns a fresh copy of the built-in allowlist domains.
+func BaselineEgress() []string {
+	return append([]string(nil), baselineEgress...)
+}
+
+// EgressDomains returns the resolved allowlist for allowlist mode — the baseline
+// domains unioned with any configured Allow — or nil when the mode is not
+// "allowlist". The result is de-duplicated and stably ordered (baseline first).
+func (n NetworkSpec) EgressDomains() []string {
+	if n.Mode != "allowlist" {
+		return nil
+	}
+	return DedupeDomains(append(BaselineEgress(), n.Allow...))
+}
+
+// DedupeDomains trims, drops empties, and removes duplicates while preserving
+// first-seen order.
+func DedupeDomains(in []string) []string {
+	seen := map[string]bool{}
+	var out []string
+	for _, d := range in {
+		d = strings.TrimSpace(d)
+		if d == "" || seen[d] {
+			continue
+		}
+		seen[d] = true
+		out = append(out, d)
+	}
+	return out
 }
 
 // Default returns the built-in base configuration.
@@ -48,8 +135,21 @@ func Default() Config {
 		Hostname: "sandbox",
 		Env:      map[string]string{},
 		Network:  NetworkSpec{Mode: "default"},
+		// Secure-by-default hardening. Dropping all capabilities and forbidding
+		// privilege escalation is essentially free for the non-root `sandbox`
+		// user and closes the obvious escape routes; the pids cap blunts fork
+		// bombs while staying well above real build/agent process counts. Memory
+		// and CPU stay unlimited (opt-in) to avoid surprising OOM-kills.
+		Security: SecuritySpec{
+			NoNewPrivileges: boolPtr(true),
+			CapDrop:         []string{"ALL"},
+			PidsLimit:       int64Ptr(1024),
+		},
 	}
 }
+
+func boolPtr(b bool) *bool    { return &b }
+func int64Ptr(n int64) *int64 { return &n }
 
 // Validate checks that the merged config is internally consistent.
 func (c Config) Validate() error {
@@ -60,9 +160,9 @@ func (c Config) Validate() error {
 		return fmt.Errorf("workdir must not be empty")
 	}
 	switch c.Network.Mode {
-	case "", "default", "none":
+	case "", "default", "none", "allowlist":
 	default:
-		return fmt.Errorf("network.mode must be \"default\" or \"none\", got %q", c.Network.Mode)
+		return fmt.Errorf("network.mode must be \"default\", \"none\", or \"allowlist\", got %q", c.Network.Mode)
 	}
 	for i, m := range c.Mounts {
 		if m.Host == "" || m.Container == "" {

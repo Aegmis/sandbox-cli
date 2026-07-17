@@ -138,6 +138,12 @@ func mergeInto(dst *Config, src Config, baseDir string) {
 	if src.Network.Mode != "" {
 		dst.Network.Mode = src.Network.Mode
 	}
+	// Allow replaces (not appends) so a project config can fully redefine the
+	// egress allowlist rather than only add to a broader inherited one.
+	if src.Network.Allow != nil {
+		dst.Network.Allow = src.Network.Allow
+	}
+	mergeSecurity(&dst.Security, src.Security)
 	for k, v := range src.Env {
 		if dst.Env == nil {
 			dst.Env = map[string]string{}
@@ -148,6 +154,35 @@ func mergeInto(dst *Config, src Config, baseDir string) {
 	for _, m := range src.Mounts {
 		m.Host = resolveHostPath(m.Host, baseDir)
 		dst.Mounts = append(dst.Mounts, m)
+	}
+}
+
+// mergeSecurity overlays the set fields of src onto dst. Pointer/string/slice
+// "unset" (nil / "" / nil) is left untouched so lower layers show through. A
+// slice set to an explicit empty list (e.g. `cap_drop: []`) is non-nil and thus
+// replaces, letting a config clear an inherited default. Slices replace rather
+// than append (unlike env_allow) so a policy can be fully redefined, not only added to.
+func mergeSecurity(dst *SecuritySpec, src SecuritySpec) {
+	if src.NoNewPrivileges != nil {
+		dst.NoNewPrivileges = src.NoNewPrivileges
+	}
+	if src.CapDrop != nil {
+		dst.CapDrop = src.CapDrop
+	}
+	if src.CapAdd != nil {
+		dst.CapAdd = src.CapAdd
+	}
+	if src.PidsLimit != nil {
+		dst.PidsLimit = src.PidsLimit
+	}
+	if src.Memory != "" {
+		dst.Memory = src.Memory
+	}
+	if src.CPUs != "" {
+		dst.CPUs = src.CPUs
+	}
+	if src.Seccomp != "" {
+		dst.Seccomp = src.Seccomp
 	}
 }
 

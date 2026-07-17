@@ -15,19 +15,23 @@ import (
 
 // runFlags holds the persistent flag values shared by run/claude/codex.
 type runFlags struct {
-	project   string
-	image     string
-	workdir   string
-	user      string
-	mounts    []string
-	env       []string
-	envAllow  []string
-	tty       bool
-	noTTY     bool
-	config    string
-	build     bool
-	dryRun    bool
-	noMetrics bool
+	project     string
+	image       string
+	workdir     string
+	user        string
+	mounts      []string
+	env         []string
+	envAllow    []string
+	tty         bool
+	noTTY       bool
+	config      string
+	build       bool
+	dryRun      bool
+	noMetrics   bool
+	memory      string
+	cpus        string
+	noHardening bool
+	allow       []string
 
 	// Auth persistence (agent wrappers only). persistName is the sandbox-owned
 	// host state dir name (e.g. "claude") mounted as the agent's HOME.
@@ -68,6 +72,10 @@ func newSession(rf *runFlags) (*sandbox.Session, sandbox.Options, error) {
 		EnvAllow:    rf.envAllow,
 		TTY:         ttyOverride(rf),
 		NoMetrics:   rf.noMetrics,
+		Memory:      rf.memory,
+		CPUs:        rf.cpus,
+		NoHardening: rf.noHardening,
+		Allow:       rf.allow,
 	}
 
 	// Persist agent login in a dedicated, sandbox-owned host dir mounted as the
@@ -114,6 +122,10 @@ func addRunFlags(cmd *cobra.Command, rf *runFlags) {
 	f.BoolVar(&rf.build, "build", false, "force rebuild of the base image")
 	f.BoolVar(&rf.dryRun, "dry-run", false, "print the docker command and exit")
 	f.BoolVar(&rf.noMetrics, "no-metrics", false, "disable the live resource gauge (non-interactive runs)")
+	f.StringVar(&rf.memory, "memory", "", "container memory limit, e.g. 2g (default: unlimited)")
+	f.StringVar(&rf.cpus, "cpus", "", "container CPU limit, e.g. 1.5 (default: unlimited)")
+	f.BoolVar(&rf.noHardening, "no-hardening", false, "disable default cap-drop/no-new-privileges/pids-limit (debug)")
+	f.StringArrayVar(&rf.allow, "allow", nil, "enable the egress allowlist and permit DOMAIN (repeatable; baseline registries always allowed)")
 
 	// Flags before -- are ours; everything after -- is the guest command verbatim.
 	f.SetInterspersed(false)

@@ -17,6 +17,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
       jq \
       python3 \
       build-essential \
+      iptables \
     && rm -rf /var/lib/apt/lists/*
 
 # Pre-install the agents so `sandbox-cli codex` and an offline `sandbox-cli claude`
@@ -65,6 +66,76 @@ if [ -n "$cpu" ]; then line="$line · cpu ${cpu}%"; fi
 printf '\033[2m%s\033[0m\n' "$line"
 SL
 RUN chmod +x /usr/local/bin/sandbox-statusline
+
+# Egress allowlist support (used only when sandbox-cli runs with `network:
+# allowlist` / `--allow`). sandbox-egress-setup programs a default-deny OUTPUT
+# firewall that permits loopback, DNS, established flows, and the resolved IPs of
+# the allowlisted domains (passed as SANDBOX_EGRESS_ALLOW). It needs to run as
+# root with NET_ADMIN, before the agent starts. Uses plain iptables (no ipset) so
+# it works on the common iptables-nft backend without extra kernel modules.
+RUN cat > /usr/local/bin/sandbox-egress-setup <<'FW'
+#!/usr/bin/env bash
+set -euo pipefail
+
+allow="${SANDBOX_EGRESS_ALLOW:-}"
+
+# No IPv6 allowlist yet: reject all IPv6 egress so it can't be used to bypass the
+# IPv4 rules. Best-effort — some hosts have no ip6tables.
+if command -v ip6tables >/dev/null 2>&1; then
+  ip6tables -F OUTPUT 2>/dev/null || true
+  ip6tables -A OUTPUT -o lo -j ACCEPT 2>/dev/null || true
+  ip6tables -A OUTPUT -m conntrack --ctstate ESTABLISHED,RELATED -j ACCEPT 2>/dev/null || true
+  ip6tables -A OUTPUT -j REJECT 2>/dev/null || true
+fi
+
+iptables -F OUTPUT
+iptables -A OUTPUT -o lo -j ACCEPT
+iptables -A OUTPUT -m conntrack --ctstate ESTABLISHED,RELATED -j ACCEPT
+# DNS, so the allowlist below (and the agent's own runtime lookups) can resolve.
+iptables -A OUTPUT -p udp --dport 53 -j ACCEPT
+iptables -A OUTPUT -p tcp --dport 53 -j ACCEPT
+
+# Permit the resolved IPv4 addresses of each allowlisted domain.
+IFS=','
+for d in $allow; do
+  d="$(printf '%s' "$d" | tr -d '[:space:]')"
+  [ -z "$d" ] && continue
+  for ip in $(getent ahostsv4 "$d" | awk '{print $1}' | sort -u); do
+    iptables -A OUTPUT -d "$ip" -j ACCEPT
+  done
+done
+unset IFS
+
+# Everything else outbound is rejected with a fast, visible error (not a hang).
+iptables -A OUTPUT -j REJECT --reject-with icmp-port-unreachable
+FW
+RUN chmod +x /usr/local/bin/sandbox-egress-setup
+
+# sandbox-firewall is the container entrypoint used in allowlist mode. It runs as
+# root, programs the firewall (failing closed if that errors — better to refuse
+# than to run without the requested allowlist), then drops to the intended user
+# (SANDBOX_RUN_AS, e.g. `sandbox`) before exec'ing the guest command. With no
+# SANDBOX_EGRESS_ALLOW set it is a transparent passthrough.
+RUN cat > /usr/local/bin/sandbox-firewall <<'EP'
+#!/usr/bin/env bash
+set -euo pipefail
+
+if [ -n "${SANDBOX_EGRESS_ALLOW:-}" ]; then
+  if ! sandbox-egress-setup; then
+    echo "sandbox-cli: egress firewall setup failed; refusing to run without the requested allowlist" >&2
+    exit 1
+  fi
+fi
+
+user="${SANDBOX_RUN_AS:-}"
+if [ -n "$user" ] && [ "$user" != "root" ] && [ "$(id -u)" = "0" ]; then
+  uid="$(id -u "$user")"
+  gid="$(id -g "$user")"
+  exec setpriv --reuid "$uid" --regid "$gid" --init-groups -- "$@"
+fi
+exec "$@"
+EP
+RUN chmod +x /usr/local/bin/sandbox-firewall
 
 # Isolated, non-root user whose home IS /sandbox/home — set as the passwd home
 # (-d) so $HOME and getpwuid agree and there is no stray /home/sandbox. Nothing

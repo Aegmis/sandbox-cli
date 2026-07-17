@@ -123,6 +123,46 @@ func TestEnvPassthrough(t *testing.T) {
 	}
 }
 
+// TestEgressAllowlist proves two properties of allowlist mode: the firewall
+// entrypoint drops back to the non-root sandbox user before running the guest
+// (so the agent isn't root), and a destination outside the allowlist is blocked.
+// It does not assert that an allowed domain succeeds, to avoid depending on live
+// internet in CI; the block + privilege-drop are the security-relevant claims.
+func TestEgressAllowlist(t *testing.T) {
+	proj := t.TempDir()
+	sess := newTestSession(t, config.Default())
+
+	// 1.1.1.1 is not in the allowlist, so the default-deny rule must reject it;
+	// curl then exits non-zero. whoami must report the dropped-to sandbox user.
+	_, err := sess.Run(context.Background(), sandbox.Options{
+		Project: proj,
+		TTY:     ptr(false),
+		Allow:   []string{"example.com"},
+		Command: []string{"sh", "-c",
+			"whoami > /workspace/who.txt; " +
+				"curl -s -m 5 -o /dev/null https://1.1.1.1 && echo reachable > /workspace/blocked.txt || echo blocked > /workspace/blocked.txt"},
+	}, false)
+	if err != nil {
+		t.Fatalf("run error: %v", err)
+	}
+
+	who, err := os.ReadFile(filepath.Join(proj, "who.txt"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := strings.TrimSpace(string(who)); got != "sandbox" {
+		t.Errorf("guest ran as %q, want sandbox (firewall entrypoint must drop privileges)", got)
+	}
+
+	blocked, err := os.ReadFile(filepath.Join(proj, "blocked.txt"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := strings.TrimSpace(string(blocked)); got != "blocked" {
+		t.Errorf("non-allowlisted egress = %q, want blocked", got)
+	}
+}
+
 // dockerAvailable is a cheap precondition guard used by TestMain-style skips.
 func dockerAvailable() bool {
 	cmd := exec.Command("docker", "info")

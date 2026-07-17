@@ -23,6 +23,10 @@ type Options struct {
 	EnvAllow    []string // --env-allow NAME (forward host value if present)
 	TTY         *bool    // --tty/--no-tty; nil => auto-detect
 	NoMetrics   bool     // disable the live resource gauge
+	Memory      string   // --memory: container memory limit (e.g. "2g"); "" => config/unlimited
+	CPUs        string   // --cpus: container CPU limit (e.g. "1.5"); "" => config/unlimited
+	NoHardening bool     // --no-hardening: drop cap-drop/no-new-privileges/pids-limit (debug escape hatch)
+	Allow       []string // --allow DOMAIN: enable the egress allowlist and permit these domains (repeatable)
 	Command     []string // guest argv
 
 	// AuthPersistDir, when non-empty, is a host directory bind-mounted read-write
@@ -127,6 +131,60 @@ func BuildSpec(cfg config.Config, opts Options) (runtime.RunSpec, error) {
 		}
 	}
 
+	// Resolve the hardening policy from config, then apply flag overrides.
+	// --no-hardening is a debug escape hatch that reverts to the historical
+	// "no cap-drop / no-new-privileges / no pids cap" behavior; it deliberately
+	// does not touch the opt-in Memory/CPU limits.
+	sec := cfg.Security
+	noNewPriv := sec.NoNewPriv()
+	capDrop := sec.CapDrop
+	capAdd := sec.CapAdd
+	pids := sec.Pids()
+	if opts.NoHardening {
+		noNewPriv = false
+		capDrop = nil
+		capAdd = nil
+		pids = 0
+	}
+	memory := sec.Memory
+	if opts.Memory != "" {
+		memory = opts.Memory
+	}
+	cpus := sec.CPUs
+	if opts.CPUs != "" {
+		cpus = opts.CPUs
+	}
+
+	// Egress allowlist. Config `network.mode: allowlist` contributes the baseline
+	// plus configured domains; `--allow DOMAIN` adds domains and, on its own,
+	// switches the allowlist on. When active, the container needs a default-deny
+	// egress firewall: that is programmed in-container at startup by the
+	// sandbox-firewall entrypoint, which requires running as root with NET_ADMIN
+	// and then drops back to the intended user (SANDBOX_RUN_AS) before the agent
+	// runs. Allowlist implies bridge networking, so it overrides `none`.
+	network := cfg.NetworkArg()
+	egress := cfg.Network.EgressDomains()
+	if len(opts.Allow) > 0 {
+		if egress == nil {
+			egress = config.BaselineEgress()
+		}
+		egress = config.DedupeDomains(append(egress, opts.Allow...))
+	}
+	dockerUser := user
+	entrypoint := ""
+	if len(egress) > 0 {
+		runAs := user
+		if runAs == "" {
+			runAs = "sandbox"
+		}
+		env["SANDBOX_EGRESS_ALLOW"] = strings.Join(egress, ",")
+		env["SANDBOX_RUN_AS"] = runAs
+		capAdd = append(capAdd, "NET_ADMIN", "NET_RAW")
+		dockerUser = "root"
+		entrypoint = "/usr/local/bin/sandbox-firewall"
+		network = "" // allowlist requires bridge networking, not "none"
+	}
+
 	tty := detectTTY()
 	if opts.TTY != nil {
 		tty = *opts.TTY
@@ -141,19 +199,30 @@ func BuildSpec(cfg config.Config, opts Options) (runtime.RunSpec, error) {
 	showSummary := metricsOn
 
 	return runtime.RunSpec{
-		Image:       image,
-		Name:        containerName(),
-		Workdir:     workdir,
-		Command:     opts.Command,
-		TTY:         tty,
-		Remove:      true,
-		Hostname:    cfg.Hostname,
-		Home:        cfg.Home,
-		User:        user,
-		Network:     cfg.NetworkArg(),
-		Env:         env,
-		EnvNames:    envNames,
-		Mounts:      mounts,
+		Image:    image,
+		Name:     containerName(),
+		Workdir:  workdir,
+		Command:  opts.Command,
+		TTY:      tty,
+		Remove:   true,
+		Hostname: cfg.Hostname,
+		Home:     cfg.Home,
+		User:     dockerUser,
+		Network:  network,
+		Env:      env,
+		EnvNames: envNames,
+		Mounts:   mounts,
+
+		Entrypoint: entrypoint,
+
+		NoNewPrivileges: noNewPriv,
+		Seccomp:         sec.Seccomp,
+		CapDrop:         capDrop,
+		CapAdd:          capAdd,
+		PidsLimit:       pids,
+		Memory:          memory,
+		CPUs:            cpus,
+
 		ShowMetrics: showMetrics,
 		ShowSummary: showSummary,
 	}, nil
