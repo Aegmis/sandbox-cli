@@ -6,6 +6,8 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"os/exec"
+	"strings"
 
 	"github.com/amitghadge/sandbox-cli/internal/audit"
 	"github.com/amitghadge/sandbox-cli/internal/config"
@@ -64,8 +66,38 @@ func (s *Session) Run(ctx context.Context, opts Options, forceBuild bool) (int, 
 	if err := injectSecrets(s.Cfg, opts); err != nil {
 		return 1, err
 	}
+	injectGitIdentity(opts)
 
 	return s.Runtime.Run(ctx, spec)
+}
+
+// injectGitIdentity, when --git is set, reads the host git user.name/email and
+// places them in this process's environment as the GIT_AUTHOR_*/GIT_COMMITTER_*
+// vars the runtime forwards by name, so commits inside the sandbox are attributed
+// to the host identity. Best-effort: an unset identity or missing git is simply
+// skipped (the workspace-trust env from BuildSpec still applies).
+func injectGitIdentity(opts Options) {
+	if !opts.GitIdentity {
+		return
+	}
+	name := gitConfigGet("user.name")
+	email := gitConfigGet("user.email")
+	if name != "" {
+		os.Setenv("GIT_AUTHOR_NAME", name)
+		os.Setenv("GIT_COMMITTER_NAME", name)
+	}
+	if email != "" {
+		os.Setenv("GIT_AUTHOR_EMAIL", email)
+		os.Setenv("GIT_COMMITTER_EMAIL", email)
+	}
+}
+
+func gitConfigGet(key string) string {
+	out, err := exec.Command("git", "config", "--get", key).Output()
+	if err != nil {
+		return ""
+	}
+	return strings.TrimSpace(string(out))
 }
 
 // injectSecrets resolves the configured/flagged secrets and sets them in the

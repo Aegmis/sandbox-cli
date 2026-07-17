@@ -168,6 +168,9 @@ sandbox-dk0gtrd15s2g  412MiB / 7.6GiB   82.00%  24
 | `--cache` | Persist package-manager caches (npm/pip/cargo/go) in named volumes across runs |
 | `--secret` | Brokered credential `NAME=file:PATH \| cmd:COMMAND \| env:VAR`, resolved at run time and kept off the command line (repeatable) |
 | `--worktree` | Run in a git worktree for `BRANCH` (created if absent) — parallel per-branch agents |
+| `--git` | Forward host git identity and trust the workspace so `git` commits just work in-container |
+| `--host-gateway` | Map `host.docker.internal` to the host (reach host MCP servers; needed on Linux) |
+| `--add-host` | Extra `HOST:IP` mapping passed to docker (repeatable) |
 
 ## Parallel agents (git worktrees)
 
@@ -189,6 +192,25 @@ Manage them with:
 sandbox-cli worktree list        # branch -> path
 sandbox-cli worktree rm BRANCH   # remove one when you're done
 ```
+
+## Making git, MCP, and SSH "just work"
+
+- **git** — `--git` forwards your host `user.name` / `user.email` (so commits are
+  attributed to you) and marks the mounted workspace as trusted, avoiding git's
+  "dubious ownership" refusal when the container user's uid differs from the
+  host's. Pairs naturally with `--worktree`.
+- **Host MCP servers** — an agent inside the container reaches services on your
+  host via `host.docker.internal`. That name resolves automatically on Docker
+  Desktop; on Linux add `--host-gateway` (it maps `host.docker.internal` to the
+  host gateway). Use `--add-host HOST:IP` for any other host mapping.
+- **SSH (manual)** — to push over SSH, forward your agent socket:
+  `--mount "$SSH_AUTH_SOCK:/ssh-agent" --env SSH_AUTH_SOCK=/ssh-agent` (on macOS
+  Docker Desktop use the socket path `/run/host-services/ssh-auth.sock`).
+- **File ownership on Linux** — files written to `/workspace` are owned by the
+  container user's uid. On macOS Docker Desktop this is virtualized to your host
+  user automatically; on native Linux, run as your own uid with
+  `--user "$(id -u):$(id -g)"` if ownership matters (note: the agent's ephemeral
+  HOME is owned by the image's `sandbox` user, so prefer this for non-agent runs).
 
 ## Configuration
 

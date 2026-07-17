@@ -13,6 +13,13 @@ import (
 	"github.com/amitghadge/sandbox-cli/internal/runtime"
 )
 
+// gitIdentityEnvNames are forwarded (by name) into the container when --git is
+// set, so commits made in the sandbox are attributed to the host git identity.
+var gitIdentityEnvNames = []string{
+	"GIT_AUTHOR_NAME", "GIT_AUTHOR_EMAIL",
+	"GIT_COMMITTER_NAME", "GIT_COMMITTER_EMAIL",
+}
+
 // Options are the per-invocation flag values collected by the CLI. Zero values
 // mean "not set" and fall back to config.
 type Options struct {
@@ -31,6 +38,9 @@ type Options struct {
 	Allow       []string // --allow DOMAIN: enable the egress allowlist and permit these domains (repeatable)
 	Cache       bool     // --cache: persist package-manager caches in named volumes across runs
 	Secrets     []string // --secret NAME=file:PATH|cmd:COMMAND|env:VAR (brokered credential, repeatable)
+	AddHosts    []string // --add-host HOST:IP (repeatable)
+	HostGateway bool     // --host-gateway: add host.docker.internal -> host gateway (reach host MCP servers)
+	GitIdentity bool     // --git: forward host git user.name/email and trust the workspace
 	Command     []string // guest argv
 
 	// AuthPersistDir, when non-empty, is a host directory bind-mounted read-write
@@ -167,6 +177,20 @@ func BuildSpec(cfg config.Config, opts Options) (runtime.RunSpec, error) {
 		addName(name)
 	}
 
+	// --git: make git "just work" inside the container. Trust the bind-mounted
+	// workspace regardless of its owner uid (avoids git's "dubious ownership"
+	// refusal when the host uid != the container user) via the GIT_CONFIG_*
+	// env-config mechanism, and forward the host git identity by name (values
+	// resolved on the real run path in injectGitIdentity, never in --dry-run).
+	if opts.GitIdentity {
+		env["GIT_CONFIG_COUNT"] = "1"
+		env["GIT_CONFIG_KEY_0"] = "safe.directory"
+		env["GIT_CONFIG_VALUE_0"] = "*"
+		for _, n := range gitIdentityEnvNames {
+			addName(n)
+		}
+	}
+
 	// Resolve the hardening policy from config, then apply flag overrides.
 	// --no-hardening is a debug escape hatch that reverts to the historical
 	// "no cap-drop / no-new-privileges / no pids cap" behavior; it deliberately
@@ -221,6 +245,14 @@ func BuildSpec(cfg config.Config, opts Options) (runtime.RunSpec, error) {
 		network = "" // allowlist requires bridge networking, not "none"
 	}
 
+	// --add-host passthrough and the --host-gateway convenience, which maps
+	// host.docker.internal to the host so an agent can reach MCP servers running
+	// on the host (automatic on Docker Desktop, but Linux needs it explicit).
+	addHosts := append([]string(nil), opts.AddHosts...)
+	if opts.HostGateway {
+		addHosts = append(addHosts, "host.docker.internal:host-gateway")
+	}
+
 	tty := detectTTY()
 	if opts.TTY != nil {
 		tty = *opts.TTY
@@ -248,6 +280,7 @@ func BuildSpec(cfg config.Config, opts Options) (runtime.RunSpec, error) {
 		Env:      env,
 		EnvNames: envNames,
 		Mounts:   mounts,
+		AddHosts: addHosts,
 
 		Entrypoint: entrypoint,
 

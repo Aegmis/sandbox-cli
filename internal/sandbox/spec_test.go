@@ -342,6 +342,56 @@ func TestInjectSecrets_SetsEnvFromSources(t *testing.T) {
 	}
 }
 
+func TestBuildSpec_HostGatewayAndAddHosts(t *testing.T) {
+	dir := t.TempDir()
+	spec, err := BuildSpec(baseCfg(), Options{
+		Project:     dir,
+		HostGateway: true,
+		AddHosts:    []string{"db:10.0.0.5"},
+		Command:     []string{"sh"},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !contains(spec.AddHosts, "host.docker.internal:host-gateway") {
+		t.Errorf("--host-gateway missing: %v", spec.AddHosts)
+	}
+	if !contains(spec.AddHosts, "db:10.0.0.5") {
+		t.Errorf("--add-host passthrough missing: %v", spec.AddHosts)
+	}
+	// None by default.
+	bare, _ := BuildSpec(baseCfg(), Options{Project: dir, Command: []string{"sh"}})
+	if len(bare.AddHosts) != 0 {
+		t.Errorf("unexpected AddHosts by default: %v", bare.AddHosts)
+	}
+}
+
+func TestBuildSpec_GitIdentity(t *testing.T) {
+	dir := t.TempDir()
+	spec, err := BuildSpec(baseCfg(), Options{Project: dir, GitIdentity: true, Command: []string{"sh"}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	// Workspace-trust env is set explicitly (visible, not secret).
+	if spec.Env["GIT_CONFIG_KEY_0"] != "safe.directory" || spec.Env["GIT_CONFIG_VALUE_0"] != "*" {
+		t.Errorf("git safe.directory env not set: %v", spec.Env)
+	}
+	// Identity vars are forwarded by name (values resolved at run time, not here).
+	for _, n := range []string{"GIT_AUTHOR_NAME", "GIT_COMMITTER_EMAIL"} {
+		if !contains(spec.EnvNames, n) {
+			t.Errorf("git identity var %s not forwarded by name: %v", n, spec.EnvNames)
+		}
+		if _, ok := spec.Env[n]; ok {
+			t.Errorf("git identity value leaked into spec.Env for %s", n)
+		}
+	}
+	// Off by default.
+	bare, _ := BuildSpec(baseCfg(), Options{Project: dir, Command: []string{"sh"}})
+	if _, ok := bare.Env["GIT_CONFIG_COUNT"]; ok {
+		t.Error("git env set without --git")
+	}
+}
+
 func contains(s []string, v string) bool {
 	for _, x := range s {
 		if x == v {

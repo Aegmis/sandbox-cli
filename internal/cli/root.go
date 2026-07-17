@@ -36,6 +36,9 @@ type runFlags struct {
 	cache       bool
 	secrets     []string
 	worktree    string
+	addHosts    []string
+	hostGateway bool
+	git         bool
 
 	// Auth persistence (agent wrappers only). persistName is the sandbox-owned
 	// host state dir name (e.g. "claude") mounted as the agent's HOME.
@@ -82,6 +85,9 @@ func newSession(rf *runFlags) (*sandbox.Session, sandbox.Options, error) {
 		Allow:       rf.allow,
 		Cache:       rf.cache,
 		Secrets:     rf.secrets,
+		AddHosts:    rf.addHosts,
+		HostGateway: rf.hostGateway,
+		GitIdentity: rf.git,
 	}
 
 	// --worktree BRANCH: resolve (creating if needed) a git worktree for the
@@ -155,6 +161,9 @@ func addRunFlags(cmd *cobra.Command, rf *runFlags) {
 	f.BoolVar(&rf.cache, "cache", false, "persist package-manager caches (npm/pip/cargo/go) in named volumes across runs")
 	f.StringArrayVar(&rf.secrets, "secret", nil, "brokered credential NAME=file:PATH|cmd:COMMAND|env:VAR, resolved at run time and kept off the argv (repeatable)")
 	f.StringVar(&rf.worktree, "worktree", "", "run in a git worktree for BRANCH (created if absent), for parallel per-branch agents")
+	f.StringArrayVar(&rf.addHosts, "add-host", nil, "extra HOST:IP mapping passed to docker (repeatable)")
+	f.BoolVar(&rf.hostGateway, "host-gateway", false, "map host.docker.internal to the host so the agent can reach host MCP servers (Linux)")
+	f.BoolVar(&rf.git, "git", false, "forward host git identity and trust the workspace so git commits just work in-container")
 
 	// Flags before -- are ours; everything after -- is the guest command verbatim.
 	f.SetInterspersed(false)

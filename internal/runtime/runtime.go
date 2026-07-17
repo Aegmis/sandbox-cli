@@ -38,6 +38,7 @@ type RunSpec struct {
 	Env      map[string]string // explicit KEY=VALUE injected into the container
 	EnvNames []string          // names forwarded from the host env (value read at exec time)
 	Mounts   []Mount           // bind mounts (workspace + extras)
+	AddHosts []string          // --add-host HOST:IP entries (e.g. host.docker.internal:host-gateway)
 
 	// Entrypoint overrides the image ENTRYPOINT (docker --entrypoint). "" leaves
 	// the image default. Used by the egress allowlist, where a firewall-setup

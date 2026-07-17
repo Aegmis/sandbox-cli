@@ -33,6 +33,9 @@ func BuildArgs(s RunSpec) []string {
 	if s.Network != "" {
 		a = append(a, "--network", s.Network)
 	}
+	for _, h := range s.AddHosts {
+		a = append(a, "--add-host", h)
+	}
 
 	// Container hardening. Order is fixed for deterministic output.
 	if s.NoNewPrivileges {

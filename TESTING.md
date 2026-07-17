@@ -58,6 +58,7 @@ go vet ./...              # must be clean
 | cache volumes: default off, `--cache` adds named volumes, stable names | `TestBuildSpec_CacheVolumes`, `TestCacheVolumeName`, `TestCachePathsAndEnabled`, `TestBuildArgs_VolumeMount` | `internal/sandbox`, `internal/config`, `internal/runtime` |
 | credential broker: resolve file/cmd/env, forward by name (not on argv), inject at run time | `TestResolve_*`, `TestBuildSpec_SecretsForwardedByName`, `TestBuildSpec_BadSecretFlag`, `TestInjectSecrets_SetsEnvFromSources`, `TestValidate_Secrets`, `TestLoad_SecretsMergePerKey` | `internal/creds`, `internal/sandbox`, `internal/config` |
 | git worktrees: branch-name sanitize, stable namespaced path, create/reuse/list/remove (real git) | `TestSanitizeBranch`, `TestWorktreePath_StableAndNamespaced`, `TestResolveAndList_RealGit`, `TestResolve_NotAGitRepo` | `internal/worktree` |
+| ergonomics: `--add-host`, `--host-gateway`, `--git` (safe.directory env + identity forwarded by name) | `TestBuildArgs_AddHost`, `TestBuildSpec_HostGatewayAndAddHosts`, `TestBuildSpec_GitIdentity` | `internal/runtime`, `internal/sandbox` |
 | wrapper arg splitting (claude/codex flag passthrough) | `TestSplitWrapperArgs`, `TestClaudeWrapperParsesWithoutError` | `internal/cli` |
 | `--dry-run` golden (asserts `--rm`, fake HOME, no host-home mount) | `TestDryRunInvariants` | `internal/cli` |
 | metrics parsing / bar / duration / humanBytes / footer / summary | `TestParseBytes`, `TestParseMemUsage`, `TestBar`, `TestFormatDuration`, `TestHumanBytes`, `TestFooterForwardsOutputIntact`, `TestMeterSummary` | `internal/metrics` |
@@ -211,6 +212,13 @@ if installed via `make install`).
 3. `./bin/sandbox-cli worktree rm feature/x` → removes it; `list` then shows none.
 4. Outside a git repo: `--worktree x` errors with "not a git repository".
 - Note: also covered by `TestResolveAndList_RealGit` / `TestResolve_NotAGitRepo`.
+
+**TC-4B [A/M] git / MCP ergonomics**
+1. `./bin/sandbox-cli run --dry-run --host-gateway --git --add-host db:10.0.0.5 -- git status`
+- Expected: `--add-host host.docker.internal:host-gateway` and `--add-host db:10.0.0.5`;
+  `-e GIT_CONFIG_KEY_0=safe.directory -e GIT_CONFIG_VALUE_0=*`; and `-e GIT_AUTHOR_NAME`
+  … `-e GIT_COMMITTER_EMAIL` (names only). A bare run shows none of these.
+2. [M] With Docker + a host git identity: `./bin/sandbox-cli run --git --no-tty --no-metrics -- git -C /workspace config user.email` prints your host email; committing in `/workspace` raises no "dubious ownership" error.
 
 ### Group 6 — Agent wrappers (claude / codex)
 

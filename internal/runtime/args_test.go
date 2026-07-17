@@ -138,6 +138,23 @@ func TestBuildArgs_HardeningOmittedWhenUnset(t *testing.T) {
 	}
 }
 
+func TestBuildArgs_AddHost(t *testing.T) {
+	got := BuildArgs(RunSpec{
+		Image:    "img",
+		Workdir:  "/w",
+		AddHosts: []string{"host.docker.internal:host-gateway", "db:10.0.0.5"},
+	})
+	if !hasPair(got, "--add-host", "host.docker.internal:host-gateway") {
+		t.Errorf("expected host-gateway add-host, got %v", got)
+	}
+	if !hasPair(got, "--add-host", "db:10.0.0.5") {
+		t.Errorf("expected db add-host, got %v", got)
+	}
+	if containsArg(BuildArgs(RunSpec{Image: "img", Workdir: "/w"}), "--add-host") {
+		t.Error("did not expect --add-host on a bare spec")
+	}
+}
+
 func TestBuildArgs_VolumeMount(t *testing.T) {
 	got := BuildArgs(RunSpec{
 		Image:   "img",
