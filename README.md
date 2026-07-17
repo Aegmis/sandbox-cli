@@ -115,6 +115,22 @@ The summary is sampled in the background without touching the screen, and is ski
 for containers too short-lived to sample. Disable all of this with `--no-metrics`.
 Measurement only — no limits are placed on the container.
 
+**To watch memory/CPU live during an interactive agent session**, run `sandbox-cli
+stats` in a second terminal — a refreshing table of all running sandbox containers:
+
+```sh
+sandbox-cli stats            # live table, refreshes every 2s, Ctrl-C to exit
+sandbox-cli stats --once     # a single snapshot (scriptable)
+sandbox-cli stats --interval 1s
+```
+
+```
+sandbox-cli — live stats  15:04:05  (Ctrl-C to exit)
+
+CONTAINER             MEM                CPU     PIDS
+sandbox-dk0gtrd15s2g  412MiB / 7.6GiB   82.00%  24
+```
+
 ### Common flags (run / claude / codex)
 
 | Flag | Meaning |

@@ -134,6 +134,7 @@ func NewRootCmd() *cobra.Command {
 		newCodexCmd(),
 		newInitCmd(),
 		newConfigCmd(),
+		newStatsCmd(),
 		newVersionCmd(),
 	)
 	return root
