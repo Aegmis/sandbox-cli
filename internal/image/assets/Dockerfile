@@ -34,8 +34,13 @@ RUN cat > /usr/local/bin/sandbox-statusline <<'SL'
 cat >/dev/null 2>&1 || true
 
 cg=/sys/fs/cgroup
-used=$(cat "$cg/memory.current" 2>/dev/null || echo 0)
-total=$(awk '/^MemTotal:/{printf "%d", $2*1024; exit}' /proc/meminfo 2>/dev/null || echo 0)
+# Current working-set memory, computed the same way `docker stats` does:
+# memory.current minus reclaimable page cache (inactive_file). Usage only — no
+# total (the machine total was both misleading and hit a mawk 32-bit overflow).
+cur=$(cat "$cg/memory.current" 2>/dev/null || echo 0)
+inact=$(awk '/^inactive_file /{print $2; exit}' "$cg/memory.stat" 2>/dev/null || echo 0)
+used=$(( cur - inact ))
+[ "$used" -ge 0 ] 2>/dev/null || used=$cur
 usage=$(awk '/^usage_usec/{print $2; exit}' "$cg/cpu.stat" 2>/dev/null || echo 0)
 now=$(date +%s%N 2>/dev/null || echo 0)
 
@@ -56,7 +61,6 @@ printf '%s %s\n' "$usage" "$now" > "$state" 2>/dev/null || true
 hum() { awk -v b="${1:-0}" 'BEGIN{split("B KiB MiB GiB TiB",u," ");i=1;while(b>=1024&&i<5){b/=1024;i++}printf (i==1?"%.0f%s":"%.1f%s"),b,u[i]}'; }
 
 line="⬢ sandbox · mem $(hum "$used")"
-if [ "${total:-0}" -gt 0 ] 2>/dev/null; then line="$line/$(hum "$total")"; fi
 if [ -n "$cpu" ]; then line="$line · cpu ${cpu}%"; fi
 printf '\033[2m%s\033[0m\n' "$line"
 SL
@@ -76,5 +80,7 @@ ENV HOME=/sandbox/home
 ENV PATH=/sandbox/home/.local/bin:${PATH}
 WORKDIR /workspace
 
-# MVP default is root (safe on macOS Docker Desktop where bind ownership is
-# virtualized); override at run time with `--user sandbox`.
+# No USER is set here, so the image itself defaults to root — but sandbox-cli
+# runs as the non-root `sandbox` user by default (config.Default), which is safe
+# on macOS Docker Desktop where bind ownership is virtualized. Override at run
+# time with `--user root` (or `--user uid:gid`).
