@@ -11,6 +11,9 @@ a prompt-injected command can't touch the rest of your machine.
   ~/.ssh ~/.aws ~/  ── NOT mounted            HOME=/sandbox/home  (ephemeral)
 ```
 
+> New here? Start with the **[User Guide](docs/GUIDE.md)** — setup, everyday
+> usage, and a friendly tour of every feature.
+
 ## Why
 
 Developers want to run agents with full autonomy (`--dangerously-skip-permissions`
