@@ -1,0 +1,281 @@
+# sandbox-cli — Test Plan
+
+This document lists every test case for sandbox-cli and how to run it. It has two
+parts:
+
+- **Part 1 — Automated tests** (Go unit + Docker-gated integration). Run these first.
+- **Part 2 — Manual / E2E test cases** with step-by-step instructions and expected
+  results, for behavior that can't be asserted headlessly (interactive TUIs, login,
+  the Claude status line).
+
+Legend: **[A]** = covered by an automated test · **[M]** = manual verification.
+
+---
+
+## Setup / Preconditions
+
+1. Docker Desktop is running (`docker info` succeeds).
+2. Go 1.25+ installed.
+3. Build the binary:
+   ```sh
+   make build          # -> bin/sandbox-cli
+   ```
+4. First run builds the base image (`sandbox-base:0.1.1`); allow a few minutes once:
+   ```sh
+   ./bin/sandbox-cli run --build --no-tty --no-metrics -- true
+   ```
+5. Optional: put a real key in the environment to test agents end-to-end:
+   `export ANTHROPIC_API_KEY=...` and/or `export OPENAI_API_KEY=...`.
+
+Cleanup helper (run between manual tests if needed):
+```sh
+docker ps --filter name=sandbox- -q | xargs -r docker rm -f
+```
+
+---
+
+## Part 1 — Automated tests
+
+### How to run
+
+```sh
+make test                 # unit tests only (no Docker) — fast, always run in CI
+make test-integration     # unit + Docker-gated tests (requires Docker + base image)
+gofmt -l .                # must print nothing
+go vet ./...              # must be clean
+```
+
+### Automated coverage map
+
+| Area | Test | Package |
+|---|---|---|
+| docker arg construction (the isolation invariant) | `TestBuildArgs_*` | `internal/runtime` |
+| env ordering deterministic / passthrough / network | `TestBuildArgs_*` | `internal/runtime` |
+| workspace safety refusals (`/`, `$HOME`, ancestor, file, missing) | `TestResolveWorkspace_*`, `TestIsAncestor` | `internal/sandbox` |
+| RunSpec build: mounts, env allowlist, image/user override | `TestBuildSpec_*` | `internal/sandbox` |
+| config defaults / precedence / relative mounts / discovery | `TestDefault`, `TestLoad_*`, `TestValidate_*`, `TestFindProjectConfig_*` | `internal/config` |
+| wrapper arg splitting (claude/codex flag passthrough) | `TestSplitWrapperArgs`, `TestClaudeWrapperParsesWithoutError` | `internal/cli` |
+| `--dry-run` golden (asserts `--rm`, fake HOME, no host-home mount) | `TestDryRunInvariants` | `internal/cli` |
+| metrics parsing / bar / duration / humanBytes / footer / summary | `TestParseBytes`, `TestParseMemUsage`, `TestBar`, `TestFormatDuration`, `TestHumanBytes`, `TestFooterForwardsOutputIntact`, `TestMeterSummary` | `internal/metrics` |
+| **[integration]** isolation smoke (HOME=/sandbox/home, /workspace writes reach host) | `TestIsolation_HomeAndWorkspace` | `internal/cli` |
+| **[integration]** `rm -rf ~` cannot touch host | `TestRmRfHomeSafety` | `internal/cli` |
+| **[integration]** env allowlist forwards / non-allowlisted absent | `TestEnvPassthrough` | `internal/cli` |
+| **[integration]** live gauge forwards output + draws | `TestRunWithMetrics_ForwardsOutputAndExit` | `internal/runtime` |
+| **[integration]** post-run summary prints peak | `TestRunWithSummary_PrintsPeak` | `internal/runtime` |
+| **[integration]** `stats` collector lists sandbox containers | `TestCollectSandboxStats` | `internal/cli` |
+
+**Expected:** all packages report `ok`; `gofmt -l` prints nothing; `go vet` is clean.
+
+---
+
+## Part 2 — Manual / E2E test cases
+
+Each case: **Steps** → **Expected**. Commands assume `./bin/sandbox-cli` (or `sandbox-cli`
+if installed via `make install`).
+
+### Group 1 — Build & version
+
+**TC-01 [A/M] Binary builds and reports version**
+1. `make build`
+2. `./bin/sandbox-cli version`
+- Expected: prints `sandbox-cli <ver> (base image: sandbox-base:0.1.1)`.
+
+**TC-02 [M] Dockerfile builds a static binary**
+1. `docker build --target export --output type=local,dest=./bin-docker .`
+2. `file ./bin-docker/sandbox-cli`
+- Expected: `ELF 64-bit ... statically linked, stripped`. (Clean up `bin-docker/`.)
+
+**TC-03 [M] Root help lists all commands**
+1. `./bin/sandbox-cli --help`
+- Expected: shows `run`, `claude`, `codex`, `init`, `config`, `stats`, `version`.
+
+### Group 2 — Core isolation (the security story)
+
+**TC-10 [A] HOME + workspace isolation**
+1. `mkdir /tmp/proj && cd /tmp/proj && echo hi > a.txt`
+2. `./bin/sandbox-cli run --no-tty --no-metrics -- sh -c 'echo $HOME; ls /workspace; echo x > /workspace/made.txt'`
+- Expected: prints `/sandbox/home`; lists `a.txt`; `/tmp/proj/made.txt` now exists on host.
+
+**TC-11 [A] `rm -rf ~` cannot harm the host**
+1. Create a canary: `mkdir /tmp/fakehome && echo keep > /tmp/fakehome/canary.txt`
+2. `HOME=/tmp/fakehome ./bin/sandbox-cli run --no-tty --no-metrics -p /tmp/proj -- sh -c 'rm -rf ~ || true; rm -rf / 2>/dev/null || true; echo done'`
+3. `cat /tmp/fakehome/canary.txt`
+- Expected: step 2 prints `done`; canary still says `keep` (host untouched).
+
+**TC-12 [M] Host filesystem is not visible inside**
+1. `./bin/sandbox-cli run --no-tty --no-metrics -- sh -c 'ls ~ ; cat /etc/hostname'`
+- Expected: `~` is the ephemeral container home (not your Mac home); no host files leak.
+
+### Group 3 — Workspace detection & safety refusals
+
+**TC-20 [A] Refuse to mount filesystem root**
+1. `./bin/sandbox-cli run -p / --dry-run -- true`
+- Expected: error `refusing to mount filesystem root ...`; nothing runs.
+
+**TC-21 [A] Refuse to mount `$HOME`**
+1. `./bin/sandbox-cli run -p "$HOME" --dry-run -- true`
+- Expected: error `refusing to mount your home directory ...`.
+
+**TC-22 [A] Refuse an ancestor of `$HOME`**
+1. `./bin/sandbox-cli run -p "$(dirname "$HOME")" --dry-run -- true`
+- Expected: error `... is an ancestor of your home directory ...`.
+
+**TC-23 [A] Nonexistent / non-directory project**
+1. `./bin/sandbox-cli run -p /no/such/path --dry-run -- true`
+- Expected: error `project path does not exist ...` (a file path → `... is not a directory`).
+
+### Group 4 — Config
+
+**TC-30 [M] `init` scaffolds `.sandbox.yaml`**
+1. `cd /tmp/proj && /path/to/sandbox-cli init`
+2. `cat .sandbox.yaml`
+- Expected: writes `.sandbox.yaml`; re-running without `--force` errors "already exists".
+
+**TC-31 [M] `config show` reflects merged config**
+1. `./bin/sandbox-cli config show`
+- Expected: YAML with `user: sandbox`, `workdir: /workspace`, `home: /sandbox/home`, `image: sandbox-base:0.1.1`.
+
+**TC-32 [A] Project config overrides defaults; flags override config**
+1. In `/tmp/proj/.sandbox.yaml` set `image: my-image:9` and `user: root`.
+2. `./bin/sandbox-cli run --dry-run -- true` → image is `my-image:9`, `--user root`.
+3. `./bin/sandbox-cli run --image other:1 --dry-run -- true` → image is `other:1` (flag wins).
+
+**TC-33 [A] `config validate` rejects bad values**
+1. Set `network: { mode: bogus }` in `.sandbox.yaml`; `./bin/sandbox-cli config validate`
+- Expected: non-zero exit, error about `network.mode`.
+
+### Group 5 — run, mounts, env, TTY
+
+**TC-40 [M] `--dry-run` prints the docker command**
+1. `./bin/sandbox-cli run --dry-run -- echo hi`
+- Expected: a `docker run --init --rm --name sandbox-... -e HOME=/sandbox/home -w /workspace ... echo hi` line; contains no mount of your host home.
+
+**TC-41 [A] Extra mounts (ro/rw)**
+1. `./bin/sandbox-cli run --mount /tmp/proj/data:/data:rw --mount /etc/hosts:/h:ro --dry-run -- true`
+- Expected: `/data` mount without `readonly`; `/h` mount with `,readonly`.
+
+**TC-42 [A] Env allowlist is default-deny**
+1. `FOO=bar SECRET=leak ./bin/sandbox-cli run --env FOO --no-tty --no-metrics -- sh -c 'echo FOO=$FOO SECRET=$SECRET'`
+- Expected: prints `FOO=bar SECRET=` (SECRET not forwarded).
+
+**TC-43 [M] TTY auto-detect**
+1. Interactive: `./bin/sandbox-cli run -- bash` → you get an interactive shell (`-it`).
+2. Piped: `echo | ./bin/sandbox-cli run -- cat` → works without a TTY.
+
+### Group 6 — Agent wrappers (claude / codex)
+
+**TC-50 [A/M] Claude forwards agent flags without a separator**
+1. `./bin/sandbox-cli claude --dry-run -- --dangerously-skip-permissions`
+   (or run for real: `sandbox-cli claude --dangerously-skip-permissions`)
+- Expected: command ends `... claude --dangerously-skip-permissions`; no `unknown flag` error.
+
+**TC-51 [A] Sandbox flags before the agent, agent flags after**
+1. `./bin/sandbox-cli claude --project /tmp/proj --dry-run -- --model opus`
+- Expected: `/workspace` = `/tmp/proj`; guest command `claude --model opus`.
+
+**TC-52 [A] Colliding short flag goes to the agent**
+1. `./bin/sandbox-cli claude --dry-run -- -p "do X"`
+- Expected: `-p "do X"` forwarded to claude (NOT interpreted as sandbox `--project`).
+
+**TC-53 [M] Codex wrapper runs codex**
+1. `./bin/sandbox-cli codex --dry-run -- exec 'run tests'`
+- Expected: command ends `... codex exec 'run tests'`.
+
+### Group 7 — Auth persistence (log in once)
+
+**TC-60 [M] Claude login persists across runs** *(needs a real login)*
+1. Clear: `rm -rf ~/.config/sandbox/agents/claude`
+2. `sandbox-cli claude` → run `/login`, authenticate.
+3. Quit, then `sandbox-cli claude` again.
+- Expected: second launch does **not** ask to log in.
+- Evidence: `~/.config/sandbox/agents/claude/.claude/.credentials.json` exists and `~/.config/sandbox/agents/claude/.claude.json` contains `oauthAccount`.
+
+**TC-61 [M] Persistence uses a dedicated dir, not host `~/.claude`**
+1. Inspect `./bin/sandbox-cli claude --dry-run` mounts.
+- Expected: mount is `~/.config/sandbox/agents/claude → /sandbox/home` (whole home); your real host `~/.claude` is never mounted.
+
+**TC-62 [M] `--no-persist-auth` gives a throwaway session**
+1. `./bin/sandbox-cli claude --no-persist-auth --dry-run`
+- Expected: no `agents/claude` mount present.
+
+### Group 8 — Non-root user
+
+**TC-70 [A/M] Runs as non-root `sandbox` by default**
+1. `./bin/sandbox-cli run --no-tty --no-metrics -- sh -c 'whoami; id -u'`
+- Expected: `sandbox`, uid `1001`. Files written to `/workspace` still appear on host owned by you (macOS virtualized ownership).
+
+**TC-71 [M] Claude accepts `--dangerously-skip-permissions` (not root)**
+1. `sandbox-cli claude --dangerously-skip-permissions` (with a key)
+- Expected: does **not** error "cannot be used with root/sudo".
+
+**TC-72 [M] `--user root` opt-in**
+1. `./bin/sandbox-cli run --user root --no-tty --no-metrics -- whoami`
+- Expected: `root`.
+
+### Group 9 — Metrics: live gauge, summary, stats
+
+**TC-80 [M] Live inline gauge on a non-interactive run**
+1. In a real terminal: `./bin/sandbox-cli run --no-tty -- sh -c 'for i in 1 2 3 4 5 6; do echo line $i; sleep 1; done'`
+- Expected: a dim status line pinned at the bottom — `⬢ sandbox … / sandbox-cli │ mem …  cpu …  Ns` — output scrolls above it; it disappears at exit.
+- Note: not shown if stderr isn't a terminal (piped).
+
+**TC-81 [A] Live gauge is off for interactive TTY**
+1. `./bin/sandbox-cli run -- bash` (interactive)
+- Expected: no inline gauge overlays the shell (would fight a full-screen TUI).
+
+**TC-82 [A/M] Post-run summary (works for interactive too)**
+1. `./bin/sandbox-cli run --no-tty -- sh -c 'sleep 6'` in a terminal.
+- Expected: after exit, `sandbox-cli: peak mem … · cpu peak …% · Ns`. Runs <~2s print no summary (too short to sample).
+
+**TC-83 [M] `--no-metrics` disables gauge + summary**
+1. `./bin/sandbox-cli run --no-tty --no-metrics -- sh -c 'sleep 6'`
+- Expected: no gauge, no summary line.
+
+**TC-84 [M] `sandbox-cli stats` live table**
+1. Terminal 1: `./bin/sandbox-cli run --no-tty --no-metrics -- sh -c 'sleep 30'`
+2. Terminal 2: `./bin/sandbox-cli stats`
+- Expected: a refreshing table with the running `sandbox-*` container's MEM/CPU/PIDS; `Ctrl-C` exits cleanly.
+
+**TC-85 [A/M] `stats --once` snapshot / empty state**
+1. With no sandbox containers: `./bin/sandbox-cli stats --once` → "no sandbox containers running…".
+2. With one running (see TC-84 step 1): `./bin/sandbox-cli stats --once` → one row for it.
+
+### Group 10 — Claude status line & version currency
+
+**TC-90 [M] Status line renders inside a Claude session** *(needs interactive Claude)*
+1. `sandbox-cli claude` (with a key/login).
+- Expected: a line at the bottom of the Claude UI: `⬢ sandbox · mem <used>/<total> · cpu <n>%`, updating over time.
+
+**TC-91 [M] `--no-statusline` disables it**
+1. `./bin/sandbox-cli claude --no-statusline --dry-run`
+- Expected: no `managed-settings.json` mount in the command.
+
+**TC-92 [M] Status line is NOT injected for codex**
+1. `./bin/sandbox-cli codex --dry-run`
+- Expected: no `managed-settings.json` mount. (Codex has no status-line feature; use `sandbox-cli stats` for its mem/CPU.)
+
+**TC-93 [A/M] Status-line script output (unit-level)**
+1. `./bin/sandbox-cli run --no-tty --no-metrics -- sh -c 'echo {} | /usr/local/bin/sandbox-statusline; sleep 1; echo {} | /usr/local/bin/sandbox-statusline'`
+- Expected: first line `⬢ sandbox · mem …/…`; second line also includes `· cpu <n>%`.
+
+**TC-94 [M] Claude self-updates via the persisted install**
+1. `rm -rf ~/.config/sandbox/agents/claude`
+2. `sandbox-cli claude -- --version`
+- Expected: reports the current Claude Code version (e.g. `2.1.212`), installed at `~/.config/sandbox/agents/claude/.local/bin/claude`. Second run is instant and stays current.
+
+---
+
+## Regression sign-off checklist
+
+Run before tagging a release:
+
+- [ ] `gofmt -l .` prints nothing
+- [ ] `go vet ./...` clean
+- [ ] `make test` — all `ok`
+- [ ] `make test-integration` — all `ok` (Docker running)
+- [ ] TC-40 dry-run shows `--rm`, fake HOME, and **no host-home mount**
+- [ ] TC-11 `rm -rf ~` leaves the host canary intact
+- [ ] TC-60 Claude login persists across two launches
+- [ ] TC-84 `sandbox-cli stats` shows a live container
+- [ ] TC-90 status line visible in a real Claude session
+- [ ] TC-94 Claude version matches the host's current version
