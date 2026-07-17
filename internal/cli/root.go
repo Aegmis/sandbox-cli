@@ -11,6 +11,7 @@ import (
 	"github.com/amitghadge/sandbox-cli/internal/image"
 	"github.com/amitghadge/sandbox-cli/internal/runtime"
 	"github.com/amitghadge/sandbox-cli/internal/sandbox"
+	"github.com/amitghadge/sandbox-cli/internal/worktree"
 )
 
 // runFlags holds the persistent flag values shared by run/claude/codex.
@@ -34,6 +35,7 @@ type runFlags struct {
 	allow       []string
 	cache       bool
 	secrets     []string
+	worktree    string
 
 	// Auth persistence (agent wrappers only). persistName is the sandbox-owned
 	// host state dir name (e.g. "claude") mounted as the agent's HOME.
@@ -80,6 +82,26 @@ func newSession(rf *runFlags) (*sandbox.Session, sandbox.Options, error) {
 		Allow:       rf.allow,
 		Cache:       rf.cache,
 		Secrets:     rf.secrets,
+	}
+
+	// --worktree BRANCH: resolve (creating if needed) a git worktree for the
+	// branch and run the sandbox in it, so parallel agents each get their own
+	// branch/container without colliding. This overrides the project directory.
+	if rf.worktree != "" {
+		repoDir := rf.project
+		if repoDir == "" {
+			repoDir, _ = os.Getwd()
+		}
+		info, werr := worktree.Resolve(repoDir, rf.worktree)
+		if werr != nil {
+			return nil, sandbox.Options{}, werr
+		}
+		verb := "using"
+		if info.Created {
+			verb = "created"
+		}
+		fmt.Fprintf(os.Stderr, "sandbox-cli: %s worktree %q at %s\n", verb, info.Branch, info.Path)
+		opts.Project = info.Path
 	}
 
 	// Persist agent login in a dedicated, sandbox-owned host dir mounted as the
@@ -132,6 +154,7 @@ func addRunFlags(cmd *cobra.Command, rf *runFlags) {
 	f.StringArrayVar(&rf.allow, "allow", nil, "enable the egress allowlist and permit DOMAIN (repeatable; baseline registries always allowed)")
 	f.BoolVar(&rf.cache, "cache", false, "persist package-manager caches (npm/pip/cargo/go) in named volumes across runs")
 	f.StringArrayVar(&rf.secrets, "secret", nil, "brokered credential NAME=file:PATH|cmd:COMMAND|env:VAR, resolved at run time and kept off the argv (repeatable)")
+	f.StringVar(&rf.worktree, "worktree", "", "run in a git worktree for BRANCH (created if absent), for parallel per-branch agents")
 
 	// Flags before -- are ours; everything after -- is the guest command verbatim.
 	f.SetInterspersed(false)
@@ -156,6 +179,7 @@ func NewRootCmd() *cobra.Command {
 		newInitCmd(),
 		newConfigCmd(),
 		newStatsCmd(),
+		newWorktreeCmd(),
 		newVersionCmd(),
 	)
 	return root

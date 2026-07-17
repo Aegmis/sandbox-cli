@@ -167,6 +167,28 @@ sandbox-dk0gtrd15s2g  412MiB / 7.6GiB   82.00%  24
 | `--allow` | Enable the egress allowlist and permit a domain, e.g. `--allow example.com` (repeatable; baseline registries always allowed) |
 | `--cache` | Persist package-manager caches (npm/pip/cargo/go) in named volumes across runs |
 | `--secret` | Brokered credential `NAME=file:PATH \| cmd:COMMAND \| env:VAR`, resolved at run time and kept off the command line (repeatable) |
+| `--worktree` | Run in a git worktree for `BRANCH` (created if absent) — parallel per-branch agents |
+
+## Parallel agents (git worktrees)
+
+`--worktree BRANCH` runs the sandbox in a dedicated git worktree for `BRANCH`
+instead of your working copy, so you can run several agents at once — each on its
+own branch, in its own container, with no collisions:
+
+```sh
+sandbox-cli claude --worktree feature-a -- -p "implement A"
+sandbox-cli claude --worktree feature-b -- -p "implement B"   # in parallel
+```
+
+The worktree is created from the current HEAD if the branch doesn't exist, and
+lives in a sandbox-owned directory (under `~/.config/sandbox/worktrees/`) so your
+project folder stays clean. Review a result with a normal `git checkout BRANCH`.
+Manage them with:
+
+```sh
+sandbox-cli worktree list        # branch -> path
+sandbox-cli worktree rm BRANCH   # remove one when you're done
+```
 
 ## Configuration
 

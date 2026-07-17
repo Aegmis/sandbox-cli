@@ -57,6 +57,7 @@ go vet ./...              # must be clean
 | egress allowlist resolution (root+caps+entrypoint+env, overrides `none`) | `TestBuildSpec_Egress*`, `TestBuildSpec_AllowlistOverridesNetworkNone`, `TestEgressDomains` | `internal/sandbox`, `internal/config` |
 | cache volumes: default off, `--cache` adds named volumes, stable names | `TestBuildSpec_CacheVolumes`, `TestCacheVolumeName`, `TestCachePathsAndEnabled`, `TestBuildArgs_VolumeMount` | `internal/sandbox`, `internal/config`, `internal/runtime` |
 | credential broker: resolve file/cmd/env, forward by name (not on argv), inject at run time | `TestResolve_*`, `TestBuildSpec_SecretsForwardedByName`, `TestBuildSpec_BadSecretFlag`, `TestInjectSecrets_SetsEnvFromSources`, `TestValidate_Secrets`, `TestLoad_SecretsMergePerKey` | `internal/creds`, `internal/sandbox`, `internal/config` |
+| git worktrees: branch-name sanitize, stable namespaced path, create/reuse/list/remove (real git) | `TestSanitizeBranch`, `TestWorktreePath_StableAndNamespaced`, `TestResolveAndList_RealGit`, `TestResolve_NotAGitRepo` | `internal/worktree` |
 | wrapper arg splitting (claude/codex flag passthrough) | `TestSplitWrapperArgs`, `TestClaudeWrapperParsesWithoutError` | `internal/cli` |
 | `--dry-run` golden (asserts `--rm`, fake HOME, no host-home mount) | `TestDryRunInvariants` | `internal/cli` |
 | metrics parsing / bar / duration / humanBytes / footer / summary | `TestParseBytes`, `TestParseMemUsage`, `TestBar`, `TestFormatDuration`, `TestHumanBytes`, `TestFooterForwardsOutputIntact`, `TestMeterSummary` | `internal/metrics` |
@@ -201,6 +202,15 @@ if installed via `make install`).
 1. `printf s3cr3t > /tmp/tok` then `./bin/sandbox-cli run --no-tty --no-metrics --secret 'TOK=file:/tmp/tok' -- sh -c 'echo $TOK'` → prints `s3cr3t`.
 2. `SRCV=abc ./bin/sandbox-cli run --no-tty --no-metrics --secret 'TOK=env:SRCV' -- sh -c 'echo $TOK'` → prints `abc`.
 - Note: `TC-48` (dry-run leak/exec safety) is also covered by unit tests.
+
+**TC-4A [A/M] Parallel per-branch worktrees**
+1. In a git repo: `./bin/sandbox-cli run --worktree feature/x --dry-run -- sh -c true`
+- Expected: prints `sandbox-cli: created worktree "feature/x" at <…/worktrees/…/feature-x>`;
+  the `--mount` source is that worktree path (not the repo cwd).
+2. `./bin/sandbox-cli worktree list` → lists `feature/x` with its path.
+3. `./bin/sandbox-cli worktree rm feature/x` → removes it; `list` then shows none.
+4. Outside a git repo: `--worktree x` errors with "not a git repository".
+- Note: also covered by `TestResolveAndList_RealGit` / `TestResolve_NotAGitRepo`.
 
 ### Group 6 — Agent wrappers (claude / codex)
 

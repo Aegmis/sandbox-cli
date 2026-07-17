@@ -109,6 +109,11 @@ tools across these tiers; the category is genuinely saturated.
   and forwards them by name, keeping the raw value off the command line, out of
   `--dry-run`, out of config, and out of shell history; `cmd:` sources allow short-lived
   tokens. Most twins just pass `-e KEY=VALUE` (secret on the argv).
+- **Parallel per-branch agents** — `--worktree BRANCH` runs the sandbox in a git worktree
+  (created if needed, managed under the config dir), so several agents run at once, each on
+  its own branch in its own container, reviewed with a plain `git checkout`. This is the
+  workflow `container-use` and Conductor are built around, here as a one flag on the same
+  Docker wrapper.
 
 ### Deliberate non-goals / current gaps
 
