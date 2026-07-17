@@ -5,9 +5,11 @@ package sandbox
 import (
 	"context"
 	"fmt"
+	"os"
 
 	"github.com/amitghadge/sandbox-cli/internal/audit"
 	"github.com/amitghadge/sandbox-cli/internal/config"
+	"github.com/amitghadge/sandbox-cli/internal/creds"
 	"github.com/amitghadge/sandbox-cli/internal/runtime"
 )
 
@@ -54,5 +56,36 @@ func (s *Session) Run(ctx context.Context, opts Options, forceBuild bool) (int, 
 		Command: spec.Command,
 	})
 
+	// Resolve brokered secrets and place them in this process's environment so
+	// the runtime forwards them to the container by name (the values are never
+	// on the docker argv). Done only here, on the real run path — never in
+	// Prepare/--dry-run — so a secret command is not executed just to print the
+	// command. BuildSpec already added the names to the spec's forwarded env.
+	if err := injectSecrets(s.Cfg, opts); err != nil {
+		return 1, err
+	}
+
 	return s.Runtime.Run(ctx, spec)
+}
+
+// injectSecrets resolves the configured/flagged secrets and sets them in the
+// current process environment, ready for the runtime to forward by name.
+func injectSecrets(cfg config.Config, opts Options) error {
+	sources, err := secretSources(cfg, opts)
+	if err != nil {
+		return err
+	}
+	if len(sources) == 0 {
+		return nil
+	}
+	vars, err := creds.Resolve(sources)
+	if err != nil {
+		return err
+	}
+	for _, v := range vars {
+		if err := os.Setenv(v.Name, v.Value); err != nil {
+			return fmt.Errorf("setting secret %q: %w", v.Name, err)
+		}
+	}
+	return nil
 }

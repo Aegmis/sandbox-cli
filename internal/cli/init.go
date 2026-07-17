@@ -56,6 +56,16 @@ network:
 #   enabled: true
 #   paths:
 #     - /sandbox/home/.cache/pnpm
+
+# Brokered credentials: resolved at run time and forwarded by name, so the raw
+# value never lands on the docker command line, in --dry-run, or in this file.
+# Each secret sets exactly one source: file, command, or env. Also available ad
+# hoc via --secret NAME=file:PATH|cmd:COMMAND|env:VAR.
+# secrets:
+#   GITHUB_TOKEN:
+#     command: gh auth token      # short-lived token from your own tool
+#   ANTHROPIC_API_KEY:
+#     file: ~/.secrets/anthropic
 `
 
 func newInitCmd() *cobra.Command {

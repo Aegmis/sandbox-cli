@@ -3,11 +3,13 @@ package sandbox
 import (
 	"fmt"
 	"os"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
 
 	"github.com/amitghadge/sandbox-cli/internal/config"
+	"github.com/amitghadge/sandbox-cli/internal/creds"
 	"github.com/amitghadge/sandbox-cli/internal/runtime"
 )
 
@@ -28,6 +30,7 @@ type Options struct {
 	NoHardening bool     // --no-hardening: drop cap-drop/no-new-privileges/pids-limit (debug escape hatch)
 	Allow       []string // --allow DOMAIN: enable the egress allowlist and permit these domains (repeatable)
 	Cache       bool     // --cache: persist package-manager caches in named volumes across runs
+	Secrets     []string // --secret NAME=file:PATH|cmd:COMMAND|env:VAR (brokered credential, repeatable)
 	Command     []string // guest argv
 
 	// AuthPersistDir, when non-empty, is a host directory bind-mounted read-write
@@ -145,6 +148,23 @@ func BuildSpec(cfg config.Config, opts Options) (runtime.RunSpec, error) {
 				addName(e)
 			}
 		}
+	}
+
+	// Brokered secrets are forwarded by name only. Their values are resolved on
+	// the real run path (Session.Run -> injectSecrets), never here, so BuildSpec
+	// stays pure and --dry-run neither reads a secret file nor runs a secret
+	// command. Sorted for deterministic argv order.
+	sources, err := secretSources(cfg, opts)
+	if err != nil {
+		return runtime.RunSpec{}, err
+	}
+	secretNames := make([]string, 0, len(sources))
+	for name := range sources {
+		secretNames = append(secretNames, name)
+	}
+	sort.Strings(secretNames)
+	for _, name := range secretNames {
+		addName(name)
 	}
 
 	// Resolve the hardening policy from config, then apply flag overrides.
@@ -281,6 +301,51 @@ func parseMount(raw string) (runtime.Mount, error) {
 		return runtime.Mount{}, fmt.Errorf("invalid --mount %q: host and container must be non-empty", raw)
 	}
 	return runtime.Mount{Source: host, Target: container, RO: ro}, nil
+}
+
+// secretSources merges config-declared secrets with --secret flags into a single
+// name -> source map (flags win on a name clash). It is pure (parsing + tilde
+// expansion only, no I/O), so both BuildSpec (to forward names) and Session.Run
+// (to resolve values) can call it without side effects.
+func secretSources(cfg config.Config, opts Options) (map[string]creds.Source, error) {
+	out := map[string]creds.Source{}
+	for name, s := range cfg.Secrets {
+		file := s.File
+		if file != "" {
+			file = config.ExpandTilde(file)
+		}
+		out[name] = creds.Source{File: file, Command: s.Command, Env: s.Env}
+	}
+	for _, raw := range opts.Secrets {
+		name, src, err := parseSecretFlag(raw)
+		if err != nil {
+			return nil, err
+		}
+		out[name] = src
+	}
+	return out, nil
+}
+
+// parseSecretFlag parses "NAME=file:PATH", "NAME=cmd:COMMAND", or "NAME=env:VAR".
+func parseSecretFlag(raw string) (string, creds.Source, error) {
+	name, spec, ok := strings.Cut(raw, "=")
+	if !ok || name == "" || spec == "" {
+		return "", creds.Source{}, fmt.Errorf("invalid --secret %q: want NAME=file:PATH | cmd:COMMAND | env:VAR", raw)
+	}
+	scheme, val, ok := strings.Cut(spec, ":")
+	if !ok || val == "" {
+		return "", creds.Source{}, fmt.Errorf("invalid --secret %q: source must be file:PATH, cmd:COMMAND, or env:VAR", raw)
+	}
+	switch scheme {
+	case "file":
+		return name, creds.Source{File: config.ExpandTilde(val)}, nil
+	case "cmd":
+		return name, creds.Source{Command: val}, nil
+	case "env":
+		return name, creds.Source{Env: val}, nil
+	default:
+		return "", creds.Source{}, fmt.Errorf("invalid --secret %q: unknown source %q (use file, cmd, or env)", raw, scheme)
+	}
 }
 
 // detectTTY reports whether stdin and stdout are both terminals.

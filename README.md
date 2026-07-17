@@ -166,6 +166,7 @@ sandbox-dk0gtrd15s2g  412MiB / 7.6GiB   82.00%  24
 | `--no-hardening` | Disable the default cap-drop / no-new-privileges / pids-limit (debug) |
 | `--allow` | Enable the egress allowlist and permit a domain, e.g. `--allow example.com` (repeatable; baseline registries always allowed) |
 | `--cache` | Persist package-manager caches (npm/pip/cargo/go) in named volumes across runs |
+| `--secret` | Brokered credential `NAME=file:PATH \| cmd:COMMAND \| env:VAR`, resolved at run time and kept off the command line (repeatable) |
 
 ## Configuration
 
@@ -198,6 +199,10 @@ security:             # secure-by-default hardening; override per project/user
 cache:                # opt-in: persist package caches across --rm runs
   enabled: false      # or use --cache; mounts named volumes for npm/pip/cargo/go
   paths: []           # extra container cache dirs beyond the defaults
+secrets:              # broker: resolve at run time, forward by name (never on the argv/dry-run)
+  GITHUB_TOKEN: { command: gh auth token }   # short-lived token from your own tool
+  ANTHROPIC_API_KEY: { file: ~/.secrets/anthropic }
+  OPENAI_API_KEY: { env: OPENAI_API_KEY }     # from host env, but kept off the command line
 ```
 
 ## Security model (MVP)
@@ -211,6 +216,15 @@ cache:                # opt-in: persist package caches across --rm runs
   ship a suggested allowlist (e.g. `ANTHROPIC_API_KEY`) applied only if the value
   is set. For OAuth-file logins, mount just the agent's own dir, e.g.
   `--mount ~/.claude:/sandbox/home/.claude:rw`.
+- **Credential broker.** For secrets you'd rather not put on the command line or
+  in a config file, `secrets:` / `--secret NAME=file:PATH|cmd:COMMAND|env:VAR`
+  resolves the value at run time (from a file, a host command like `gh auth
+  token` / `op read`, or a host env var) and forwards it into the container *by
+  name*, so the raw value never appears on the docker argv, in `--dry-run`, in
+  config, or in shell history — and `cmd:` sources can be short-lived tokens
+  fetched fresh each run. (The agent process still receives the value as an env
+  var; hiding it from the agent entirely needs a header-injecting egress proxy,
+  which is future work.)
 - **Hardened container by default.** Every run drops all Linux capabilities
   (`--cap-drop=ALL`), forbids privilege escalation (`--security-opt
   no-new-privileges`), and caps process count (`--pids-limit`) to blunt fork
@@ -228,8 +242,9 @@ cache:                # opt-in: persist package caches across --rm runs
   errors. Requires a Linux-capable Docker host (iptables); resolves domains to IPs
   once at startup, so extremely dynamic CDNs may need extra `allow` entries.
 
-Out of scope for this milestone (clean seams exist in the code): a credential
-broker, per-request egress policies, snapshots, risk scoring, and audit trails.
+Out of scope for this milestone (clean seams exist in the code): a
+header-injecting secrets proxy (so the agent never sees the raw value),
+per-request egress policies, snapshots, risk scoring, and audit trails.
 
 ## Alternatives & prior art
 

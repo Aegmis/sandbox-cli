@@ -152,6 +152,14 @@ func mergeInto(dst *Config, src Config, baseDir string) {
 	if src.Cache.Paths != nil {
 		dst.Cache.Paths = src.Cache.Paths
 	}
+	// Secrets overlay per-key (like Env): a later layer can add or replace an
+	// individual secret without wiping the inherited set.
+	for k, v := range src.Secrets {
+		if dst.Secrets == nil {
+			dst.Secrets = map[string]SecretSpec{}
+		}
+		dst.Secrets[k] = v
+	}
 	for k, v := range src.Env {
 		if dst.Env == nil {
 			dst.Env = map[string]string{}

@@ -204,6 +204,49 @@ func countStr(s []string, v string) int {
 	return n
 }
 
+func TestValidate_Secrets(t *testing.T) {
+	c := Default()
+	// Exactly one source is valid.
+	c.Secrets = map[string]SecretSpec{"TOK": {Env: "HOST_TOK"}}
+	if err := c.Validate(); err != nil {
+		t.Errorf("single-source secret should validate: %v", err)
+	}
+	// Two sources is invalid.
+	c.Secrets = map[string]SecretSpec{"TOK": {Env: "HOST_TOK", File: "/x"}}
+	if err := c.Validate(); err == nil {
+		t.Error("expected error for a secret with two sources")
+	}
+	// Zero sources is invalid.
+	c.Secrets = map[string]SecretSpec{"TOK": {}}
+	if err := c.Validate(); err == nil {
+		t.Error("expected error for a secret with no source")
+	}
+}
+
+func TestLoad_SecretsMergePerKey(t *testing.T) {
+	dir := t.TempDir()
+	cfgFile := filepath.Join(dir, projectFileName)
+	content := "secrets:\n  GITHUB_TOKEN:\n    command: gh auth token\n  API_KEY:\n    file: ~/.secrets/api\n"
+	if err := os.WriteFile(cfgFile, []byte(content), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("XDG_CONFIG_HOME", filepath.Join(dir, "empty-xdg"))
+
+	cfg, err := Load(dir, "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cfg.Secrets["GITHUB_TOKEN"].Command != "gh auth token" {
+		t.Errorf("GITHUB_TOKEN command = %q", cfg.Secrets["GITHUB_TOKEN"].Command)
+	}
+	if cfg.Secrets["API_KEY"].File != "~/.secrets/api" {
+		t.Errorf("API_KEY file = %q", cfg.Secrets["API_KEY"].File)
+	}
+	if err := cfg.Validate(); err != nil {
+		t.Errorf("loaded secrets should validate: %v", err)
+	}
+}
+
 func TestValidate_BadMountMode(t *testing.T) {
 	c := Default()
 	c.Mounts = []MountSpec{{Host: "/a", Container: "/b", Mode: "xx"}}

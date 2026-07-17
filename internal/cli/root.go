@@ -33,6 +33,7 @@ type runFlags struct {
 	noHardening bool
 	allow       []string
 	cache       bool
+	secrets     []string
 
 	// Auth persistence (agent wrappers only). persistName is the sandbox-owned
 	// host state dir name (e.g. "claude") mounted as the agent's HOME.
@@ -78,6 +79,7 @@ func newSession(rf *runFlags) (*sandbox.Session, sandbox.Options, error) {
 		NoHardening: rf.noHardening,
 		Allow:       rf.allow,
 		Cache:       rf.cache,
+		Secrets:     rf.secrets,
 	}
 
 	// Persist agent login in a dedicated, sandbox-owned host dir mounted as the
@@ -129,6 +131,7 @@ func addRunFlags(cmd *cobra.Command, rf *runFlags) {
 	f.BoolVar(&rf.noHardening, "no-hardening", false, "disable default cap-drop/no-new-privileges/pids-limit (debug)")
 	f.StringArrayVar(&rf.allow, "allow", nil, "enable the egress allowlist and permit DOMAIN (repeatable; baseline registries always allowed)")
 	f.BoolVar(&rf.cache, "cache", false, "persist package-manager caches (npm/pip/cargo/go) in named volumes across runs")
+	f.StringArrayVar(&rf.secrets, "secret", nil, "brokered credential NAME=file:PATH|cmd:COMMAND|env:VAR, resolved at run time and kept off the argv (repeatable)")
 
 	// Flags before -- are ours; everything after -- is the guest command verbatim.
 	f.SetInterspersed(false)

@@ -1,28 +1,85 @@
-// Package creds is a seam for credential brokering. The MVP forwards nothing by
-// default and only honors an opt-in env allowlist (applied in sandbox.BuildSpec).
-// A later milestone can add a keychain/vault-backed broker issuing short-lived,
-// scoped tokens so the agent never sees raw long-lived credentials.
+// Package creds is the credential broker. It resolves secret *references* — a
+// host file, a host command, or a host environment variable — into concrete
+// environment values at run time. sandbox-cli forwards those values into the
+// container by name (docker `-e NAME`), so the raw secret never appears on the
+// docker command line, in `--dry-run` output, in a config file, or in shell
+// history, and command-sourced secrets (e.g. `op read`, `gh auth token`,
+// `vault read`) can be short-lived and fetched fresh each run.
+//
+// Scope note: the agent process inside the container still receives the value as
+// an environment variable (it needs it to authenticate). Hiding the value from
+// the agent entirely would require a header-injecting egress proxy (as in Docker
+// `sbx`), which is future work; this broker closes the "secret on the host
+// command line / in config" gap, not the "agent never sees the key" one.
 package creds
 
-import "github.com/amitghadge/sandbox-cli/internal/runtime"
+import (
+	"fmt"
+	"os"
+	"os/exec"
+	"sort"
+	"strings"
+)
 
-// EnvVar is a resolved environment variable to inject.
+// EnvVar is a resolved environment variable to inject into the container.
 type EnvVar struct {
 	Name  string
 	Value string
 }
 
-// Broker resolves the credentials a given agent is allowed to receive, as env
-// vars and/or scoped mounts.
-type Broker interface {
-	Resolve(agent string) (env []EnvVar, mounts []runtime.Mount, err error)
+// Source describes where a secret's value comes from. Exactly one field is set;
+// Resolve enforces that.
+type Source struct {
+	File    string // read the value from this host file (whitespace-trimmed)
+	Command string // run this host command via `sh -c`; trimmed stdout is the value
+	Env     string // read the value from this host environment variable
 }
 
-// AllowlistBroker is the MVP implementation: it grants nothing beyond what the
-// env allowlist already handles. It exists to make the seam concrete.
-type AllowlistBroker struct{}
+// Resolve fetches every secret to a concrete env var, in sorted name order for
+// deterministic behavior. It performs I/O (reads files, runs commands) and must
+// be called only on the real run path — never for --dry-run, so secrets are not
+// read or executed merely to print the docker command.
+func Resolve(secrets map[string]Source) ([]EnvVar, error) {
+	names := make([]string, 0, len(secrets))
+	for n := range secrets {
+		names = append(names, n)
+	}
+	sort.Strings(names)
 
-// Resolve returns no additional credentials in the MVP.
-func (AllowlistBroker) Resolve(string) ([]EnvVar, []runtime.Mount, error) {
-	return nil, nil, nil
+	out := make([]EnvVar, 0, len(names))
+	for _, name := range names {
+		v, err := resolveOne(name, secrets[name])
+		if err != nil {
+			return nil, err
+		}
+		out = append(out, EnvVar{Name: name, Value: v})
+	}
+	return out, nil
+}
+
+func resolveOne(name string, s Source) (string, error) {
+	switch {
+	case s.File != "":
+		b, err := os.ReadFile(s.File)
+		if err != nil {
+			return "", fmt.Errorf("secret %q: reading file: %w", name, err)
+		}
+		return strings.TrimSpace(string(b)), nil
+	case s.Command != "":
+		cmd := exec.Command("sh", "-c", s.Command)
+		cmd.Stderr = os.Stderr
+		b, err := cmd.Output()
+		if err != nil {
+			return "", fmt.Errorf("secret %q: running command: %w", name, err)
+		}
+		return strings.TrimSpace(string(b)), nil
+	case s.Env != "":
+		v, ok := os.LookupEnv(s.Env)
+		if !ok {
+			return "", fmt.Errorf("secret %q: host env %q is not set", name, s.Env)
+		}
+		return v, nil
+	default:
+		return "", fmt.Errorf("secret %q: no source (set exactly one of file, command, or env)", name)
+	}
 }

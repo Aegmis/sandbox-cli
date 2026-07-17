@@ -11,17 +11,28 @@ import (
 
 // Config is the merged sandbox configuration.
 type Config struct {
-	Image    string            `yaml:"image"`
-	Workdir  string            `yaml:"workdir"`
-	User     string            `yaml:"user"`
-	Home     string            `yaml:"home"`
-	Hostname string            `yaml:"hostname"`
-	Mounts   []MountSpec       `yaml:"mounts"`
-	Env      map[string]string `yaml:"env"`
-	EnvAllow []string          `yaml:"env_allow"`
-	Network  NetworkSpec       `yaml:"network"`
-	Security SecuritySpec      `yaml:"security"`
-	Cache    CacheSpec         `yaml:"cache"`
+	Image    string                `yaml:"image"`
+	Workdir  string                `yaml:"workdir"`
+	User     string                `yaml:"user"`
+	Home     string                `yaml:"home"`
+	Hostname string                `yaml:"hostname"`
+	Mounts   []MountSpec           `yaml:"mounts"`
+	Env      map[string]string     `yaml:"env"`
+	EnvAllow []string              `yaml:"env_allow"`
+	Network  NetworkSpec           `yaml:"network"`
+	Security SecuritySpec          `yaml:"security"`
+	Cache    CacheSpec             `yaml:"cache"`
+	Secrets  map[string]SecretSpec `yaml:"secrets"`
+}
+
+// SecretSpec is a brokered credential: a reference to a value resolved at run
+// time and forwarded into the container by name, so the raw value never lands on
+// the docker command line, in --dry-run, in this config, or in shell history.
+// Exactly one source field must be set (enforced by Validate).
+type SecretSpec struct {
+	File    string `yaml:"file"`    // read the value from this host file
+	Command string `yaml:"command"` // run this host command; its stdout is the value
+	Env     string `yaml:"env"`     // read the value from this host env var
 }
 
 // SecuritySpec is the container-hardening policy. The pointer fields are
@@ -252,6 +263,20 @@ func (c Config) Validate() error {
 		case "", "ro", "rw":
 		default:
 			return fmt.Errorf("mounts[%d]: mode must be \"ro\" or \"rw\", got %q", i, m.Mode)
+		}
+	}
+	for name, s := range c.Secrets {
+		if name == "" {
+			return fmt.Errorf("secrets: a secret name must not be empty")
+		}
+		n := 0
+		for _, set := range []bool{s.File != "", s.Command != "", s.Env != ""} {
+			if set {
+				n++
+			}
+		}
+		if n != 1 {
+			return fmt.Errorf("secrets[%q]: set exactly one of file, command, or env (got %d)", name, n)
 		}
 	}
 	return nil

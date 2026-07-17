@@ -104,6 +104,11 @@ tools across these tiers; the category is genuinely saturated.
   APIs + package registries plus your domains, so `npm`/`pip`/`git` keep working while
   blocking exfiltration. Closes the gap that even the closest twin (`claude-pod`)
   explicitly leaves open; comparable in spirit to the devcontainer firewall.
+- **Credential broker** — `secrets:` / `--secret NAME=file:|cmd:|env:` resolves secrets at
+  run time (a file, a host command like `gh auth token` / `op read`, or a host env var)
+  and forwards them by name, keeping the raw value off the command line, out of
+  `--dry-run`, out of config, and out of shell history; `cmd:` sources allow short-lived
+  tokens. Most twins just pass `-e KEY=VALUE` (secret on the argv).
 
 ### Deliberate non-goals / current gaps
 
@@ -118,9 +123,13 @@ tools across these tiers; the category is genuinely saturated.
   (iptables + `NET_ADMIN`), so it needs a Linux-capable Docker host.
 - **No user-namespace remapping or `--read-only` rootfs yet** — the next hardening
   steps after the baseline below.
-- **Credential broker / audit are stubs.** The credential broker (`internal/creds`) and
-  audit sink (`internal/audit`) are deliberate no-op seams awaiting implementation; a
-  header-injecting secrets broker (like `sbx`'s) is the notable remaining gap.
+- **Credential broker resolves + forwards, but doesn't hide from the agent.**
+  `secrets:` / `--secret` now resolve values at run time (file / host command /
+  env) and forward them by name, keeping raw secrets off the argv, `--dry-run`,
+  config, and shell history — but the agent process still receives the value. A
+  header-injecting proxy so the agent never sees the key (like `sbx`'s Secrets
+  Manager) is the remaining gap. The audit sink (`internal/audit`) is still a
+  deliberate no-op seam.
 
 ## Bottom line
 

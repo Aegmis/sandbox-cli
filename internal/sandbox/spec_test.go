@@ -1,6 +1,7 @@
 package sandbox
 
 import (
+	"os"
 	"strings"
 	"testing"
 
@@ -275,6 +276,69 @@ func TestBuildSpec_CacheVolumes(t *testing.T) {
 	}
 	if binds != 1 {
 		t.Errorf("expected exactly one bind mount (workspace), got %d: %+v", binds, spec.Mounts)
+	}
+}
+
+func TestBuildSpec_SecretsForwardedByName(t *testing.T) {
+	dir := t.TempDir()
+	cfg := baseCfg()
+	cfg.Secrets = map[string]config.SecretSpec{"CONFIG_TOKEN": {Command: "gh auth token"}}
+	spec, err := BuildSpec(cfg, Options{
+		Project: dir,
+		Secrets: []string{"FLAG_TOKEN=file:~/.secrets/x"},
+		Command: []string{"claude"},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	// Both secrets forwarded by name...
+	if !contains(spec.EnvNames, "CONFIG_TOKEN") {
+		t.Errorf("config secret not forwarded: %v", spec.EnvNames)
+	}
+	if !contains(spec.EnvNames, "FLAG_TOKEN") {
+		t.Errorf("flag secret not forwarded: %v", spec.EnvNames)
+	}
+	// ...and their values must NOT appear as explicit env on the spec (which would
+	// put them on the docker argv / dry-run). BuildSpec must not resolve values.
+	if _, ok := spec.Env["CONFIG_TOKEN"]; ok {
+		t.Error("secret value leaked into spec.Env (would hit the argv)")
+	}
+	if _, ok := spec.Env["FLAG_TOKEN"]; ok {
+		t.Error("secret value leaked into spec.Env (would hit the argv)")
+	}
+}
+
+func TestBuildSpec_BadSecretFlag(t *testing.T) {
+	dir := t.TempDir()
+	for _, bad := range []string{"NOEQUALS", "NAME=", "NAME=bogus:x", "NAME=file:"} {
+		_, err := BuildSpec(baseCfg(), Options{Project: dir, Secrets: []string{bad}, Command: []string{"sh"}})
+		if err == nil {
+			t.Errorf("expected error for malformed --secret %q", bad)
+		}
+	}
+}
+
+func TestInjectSecrets_SetsEnvFromSources(t *testing.T) {
+	t.Setenv("SRC_ENV_SECRET", "topsecret")
+	// Register cleanup for the target var so the test doesn't leak process env.
+	t.Setenv("BROKERED_TOKEN", "placeholder")
+
+	cfg := config.Default()
+	cfg.Secrets = map[string]config.SecretSpec{"BROKERED_TOKEN": {Env: "SRC_ENV_SECRET"}}
+	if err := injectSecrets(cfg, Options{}); err != nil {
+		t.Fatal(err)
+	}
+	if got := os.Getenv("BROKERED_TOKEN"); got != "topsecret" {
+		t.Errorf("injectSecrets set BROKERED_TOKEN=%q, want topsecret", got)
+	}
+
+	// A --secret flag with env: source also resolves.
+	t.Setenv("FLAG_TOKEN", "placeholder")
+	if err := injectSecrets(config.Default(), Options{Secrets: []string{"FLAG_TOKEN=env:SRC_ENV_SECRET"}}); err != nil {
+		t.Fatal(err)
+	}
+	if got := os.Getenv("FLAG_TOKEN"); got != "topsecret" {
+		t.Errorf("injectSecrets(flag) set FLAG_TOKEN=%q, want topsecret", got)
 	}
 }
 

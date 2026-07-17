@@ -56,6 +56,7 @@ go vet ./...              # must be clean
 | config defaults / precedence / relative mounts / discovery | `TestDefault`, `TestLoad_*`, `TestValidate_*`, `TestFindProjectConfig_*` | `internal/config` |
 | egress allowlist resolution (root+caps+entrypoint+env, overrides `none`) | `TestBuildSpec_Egress*`, `TestBuildSpec_AllowlistOverridesNetworkNone`, `TestEgressDomains` | `internal/sandbox`, `internal/config` |
 | cache volumes: default off, `--cache` adds named volumes, stable names | `TestBuildSpec_CacheVolumes`, `TestCacheVolumeName`, `TestCachePathsAndEnabled`, `TestBuildArgs_VolumeMount` | `internal/sandbox`, `internal/config`, `internal/runtime` |
+| credential broker: resolve file/cmd/env, forward by name (not on argv), inject at run time | `TestResolve_*`, `TestBuildSpec_SecretsForwardedByName`, `TestBuildSpec_BadSecretFlag`, `TestInjectSecrets_SetsEnvFromSources`, `TestValidate_Secrets`, `TestLoad_SecretsMergePerKey` | `internal/creds`, `internal/sandbox`, `internal/config` |
 | wrapper arg splitting (claude/codex flag passthrough) | `TestSplitWrapperArgs`, `TestClaudeWrapperParsesWithoutError` | `internal/cli` |
 | `--dry-run` golden (asserts `--rm`, fake HOME, no host-home mount) | `TestDryRunInvariants` | `internal/cli` |
 | metrics parsing / bar / duration / humanBytes / footer / summary | `TestParseBytes`, `TestParseMemUsage`, `TestBar`, `TestFormatDuration`, `TestHumanBytes`, `TestFooterForwardsOutputIntact`, `TestMeterSummary` | `internal/metrics` |
@@ -189,6 +190,17 @@ if installed via `make install`).
 1. `./bin/sandbox-cli run --cache --no-tty --no-metrics -- sh -c 'echo hi > /sandbox/home/.npm/_probe && echo WROTE'` → prints `WROTE` (no permission error).
 2. `./bin/sandbox-cli run --cache --no-tty --no-metrics -- sh -c 'cat /sandbox/home/.npm/_probe'` → prints `hi` (survived the `--rm`).
 3. Cleanup: `docker volume rm sandbox-cache-npm` (note: this is the shared cache volume).
+
+**TC-48 [A] Brokered secret is forwarded by name, never on the argv, and dry-run does not resolve it**
+1. `./bin/sandbox-cli run --dry-run --secret 'TOK=cmd:echo RAN >&2; printf leaked' -- sh -c true`
+- Expected: the rendered command contains `-e TOK` (name only); it does **not** contain `leaked`, and `RAN` is **not** printed (dry-run must not execute the command source).
+2. `./bin/sandbox-cli run --dry-run --secret 'TOK=file:/etc/hostname' -- sh -c true`
+- Expected: `-e TOK` present, file contents absent.
+
+**TC-49 [M] Brokered secret reaches the container at run time (needs Docker)**
+1. `printf s3cr3t > /tmp/tok` then `./bin/sandbox-cli run --no-tty --no-metrics --secret 'TOK=file:/tmp/tok' -- sh -c 'echo $TOK'` → prints `s3cr3t`.
+2. `SRCV=abc ./bin/sandbox-cli run --no-tty --no-metrics --secret 'TOK=env:SRCV' -- sh -c 'echo $TOK'` → prints `abc`.
+- Note: `TC-48` (dry-run leak/exec safety) is also covered by unit tests.
 
 ### Group 6 — Agent wrappers (claude / codex)
 
