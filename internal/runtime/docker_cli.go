@@ -1,12 +1,16 @@
 package runtime
 
 import (
+	"bytes"
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
 	"os"
 	"os/exec"
+	"sort"
+	"strings"
 	"sync"
 
 	"github.com/amitghadge/sandbox-cli/internal/metrics"
@@ -78,9 +82,68 @@ type Builder func(ctx context.Context, ref string) error
 // SetBuilder wires a build function used by EnsureImage when an image is absent.
 func (d *DockerCLI) SetBuilder(b Builder) { d.builder = b }
 
+// checkRuntime verifies the daemon has the requested OCI runtime registered.
+// Failing to query the daemon is non-fatal — the run proceeds and docker
+// surfaces its own error — so this only ever turns an already-broken run into a
+// friendlier message. Returns nil for the default (empty) runtime.
+func (d *DockerCLI) checkRuntime(ctx context.Context, name string) error {
+	if name == "" {
+		return nil
+	}
+	out, err := exec.CommandContext(ctx, d.bin(), "info", "--format", "{{json .Runtimes}}").Output()
+	if err != nil {
+		return nil // can't tell; let the run proceed and docker report
+	}
+	avail, err := parseRuntimeNames(out)
+	if err != nil {
+		return nil
+	}
+	return runtimeHint(name, avail)
+}
+
+// parseRuntimeNames extracts the sorted runtime names from `docker info
+// --format '{{json .Runtimes}}'` output (a JSON object keyed by runtime name).
+func parseRuntimeNames(jsonOut []byte) ([]string, error) {
+	var m map[string]json.RawMessage
+	if err := json.Unmarshal(bytes.TrimSpace(jsonOut), &m); err != nil {
+		return nil, err
+	}
+	names := make([]string, 0, len(m))
+	for k := range m {
+		names = append(names, k)
+	}
+	sort.Strings(names)
+	return names, nil
+}
+
+// runtimeHint returns nil if name is among avail, else a friendly, actionable
+// error. Pure, so it is unit-tested without a daemon.
+func runtimeHint(name string, avail []string) error {
+	for _, r := range avail {
+		if r == name {
+			return nil
+		}
+	}
+	list := strings.Join(avail, ", ")
+	if list == "" {
+		list = "(none reported)"
+	}
+	return fmt.Errorf("runtime %q is not registered with the Docker daemon\n"+
+		"  available runtimes: %s\n"+
+		"  register it in /etc/docker/daemon.json (\"runtimes\": {%q: {\"path\": \"...\"}}) and restart docker,\n"+
+		"  or install gVisor with `runsc install`. See docs/GUIDE.md → \"Stronger isolation\".",
+		name, list, name)
+}
+
 // Run executes the spec and returns the guest exit code. A non-zero guest exit
 // is returned as (code, nil); only failures to launch docker itself return err.
 func (d *DockerCLI) Run(ctx context.Context, spec RunSpec) (int, error) {
+	// Pre-flight the requested OCI runtime so a typo or missing install fails with
+	// a helpful hint instead of docker's terse "unknown or invalid runtime name".
+	if err := d.checkRuntime(ctx, spec.Runtime); err != nil {
+		return 1, err
+	}
+
 	args := BuildArgs(spec)
 	cmd := exec.CommandContext(ctx, d.bin(), args...)
 	cmd.Stdin = os.Stdin
