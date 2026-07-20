@@ -91,3 +91,16 @@ func TestClaudeWrapperParsesWithoutError(t *testing.T) {
 		t.Fatal("claude wrapper must set DisableFlagParsing to forward agent flags")
 	}
 }
+
+func TestClaudeProjectBucket(t *testing.T) {
+	cases := map[string]string{
+		"/Users/amitghadge/project/sandbox-cli": "-Users-amitghadge-project-sandbox-cli",
+		"/workspace":                            "-workspace",
+		"/Users/x/.agent/ai":                    "-Users-x--agent-ai", // '/.' -> '--'
+	}
+	for in, want := range cases {
+		if got := claudeProjectBucket(in); got != want {
+			t.Errorf("claudeProjectBucket(%q) = %q, want %q", in, got, want)
+		}
+	}
+}

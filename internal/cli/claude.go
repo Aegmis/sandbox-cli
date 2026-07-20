@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/spf13/cobra"
 
@@ -53,6 +54,9 @@ func newClaudeCmd() *cobra.Command {
 			"Your Claude login is persisted by default in a sandbox-owned directory\n" +
 			"(~/.config/sandbox/agents/claude, separate from your host ~/.claude), so you\n" +
 			"log in once. Use --no-persist-auth for a throwaway session.\n\n" +
+			"By default the sandbox keeps its own conversation history, so a host session\n" +
+			"cannot be --resume'd inside it. Pass --share-history to read-write mount your\n" +
+			"host Claude history for this repo into the sandbox so host session IDs resolve.\n\n" +
 			"Forwards ANTHROPIC_API_KEY and related variables from your host environment\n" +
 			"only if they are set. No other host files are mounted unless you pass --mount.",
 		Example: "  sandbox-cli claude\n" +
@@ -64,16 +68,21 @@ func newClaudeCmd() *cobra.Command {
 		RunE: func(cmd *cobra.Command, args []string) error {
 			agentCmd := []string{"sh", "-c", claudeBootstrap, "claude"}
 			afterParse := func() error {
-				if rf.noStatusline {
-					return nil
+				if !rf.noStatusline {
+					if p, err := ensureClaudeStatuslineSettings(); err != nil {
+						// Non-fatal: the status line is a nicety, not core function.
+						fmt.Fprintln(os.Stderr, "sandbox-cli: status line disabled: "+err.Error())
+					} else {
+						rf.mounts = append(rf.mounts, p+":/etc/claude-code/managed-settings.json:ro")
+					}
 				}
-				p, err := ensureClaudeStatuslineSettings()
-				if err != nil {
-					// Non-fatal: the status line is a nicety, not core function.
-					fmt.Fprintln(os.Stderr, "sandbox-cli: status line disabled: "+err.Error())
-					return nil
+				if rf.shareHistory {
+					if src, target, ok := claudeHistoryMount(rf); ok {
+						rf.mounts = append(rf.mounts, src+":"+target+":rw")
+					} else {
+						fmt.Fprintln(os.Stderr, "sandbox-cli: --share-history: no host Claude history found for this project; nothing to share")
+					}
 				}
-				rf.mounts = append(rf.mounts, p+":/etc/claude-code/managed-settings.json:ro")
 				return nil
 			}
 			return runWrapper(cmd, rf, args, agentCmd, claudeEnvAllow, afterParse)
@@ -86,7 +95,49 @@ func newClaudeCmd() *cobra.Command {
 	rf.persistName = "claude"
 	cmd.Flags().BoolVar(&rf.noPersistAuth, "no-persist-auth", false, "do not persist the agent login across runs")
 	cmd.Flags().BoolVar(&rf.noStatusline, "no-statusline", false, "don't add the sandbox memory/CPU status line to Claude")
+	cmd.Flags().BoolVar(&rf.shareHistory, "share-history", false, "mount your host Claude history for this repo so host sessions can be --resume'd (read-write)")
 	return cmd
+}
+
+// claudeProjectBucket mirrors how Claude Code names a project's session
+// directory under ~/.claude/projects: the absolute path with every '/' and '.'
+// replaced by '-' (e.g. /Users/x/proj → -Users-x-proj, /workspace → -workspace).
+func claudeProjectBucket(absPath string) string {
+	b := strings.ReplaceAll(absPath, "/", "-")
+	return strings.ReplaceAll(b, ".", "-")
+}
+
+// claudeHistoryMount resolves the host Claude project-history dir for the
+// workspace and the matching in-container target (under the persisted HOME's
+// -workspace bucket). Returns ok=false if the host has no history for this repo.
+// Assumes the default HOME (/sandbox/home) and workdir (/workspace); with those
+// overridden, resume-by-id may not line up.
+func claudeHistoryMount(rf *runFlags) (src, target string, ok bool) {
+	p := rf.project
+	if p == "" {
+		if wd, err := os.Getwd(); err == nil {
+			p = wd
+		}
+	}
+	p = config.ExpandTilde(p)
+	abs, err := filepath.Abs(p)
+	if err != nil {
+		return "", "", false
+	}
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return "", "", false
+	}
+	src = filepath.Join(home, ".claude", "projects", claudeProjectBucket(abs))
+	if fi, err := os.Stat(src); err != nil || !fi.IsDir() {
+		return "", "", false
+	}
+	wd := rf.workdir
+	if wd == "" {
+		wd = "/workspace"
+	}
+	target = "/sandbox/home/.claude/projects/" + claudeProjectBucket(wd)
+	return src, target, true
 }
 
 // ensureClaudeStatuslineSettings writes the managed-settings.json to a sandbox-
