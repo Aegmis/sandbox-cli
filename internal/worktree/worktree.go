@@ -83,11 +83,14 @@ func List(dir string) ([]Info, error) {
 	if err != nil {
 		return nil, err
 	}
-	base := worktreeBase(root)
+	// Compare on symlink-resolved paths: `git worktree list` reports resolved
+	// paths (e.g. /private/var/... on macOS) while worktreeBase is the logical
+	// path (/var/...), so a raw prefix check would drop every managed worktree.
+	base := resolveSymlinks(worktreeBase(root))
 	var infos []Info
 	var cur Info
 	flush := func() {
-		if cur.Path != "" && strings.HasPrefix(cur.Path, base) {
+		if cur.Path != "" && strings.HasPrefix(resolveSymlinks(cur.Path), base) {
 			infos = append(infos, cur)
 		}
 		cur = Info{}
@@ -162,6 +165,15 @@ func sanitizeBranch(b string) string {
 func isDir(p string) bool {
 	fi, err := os.Stat(p)
 	return err == nil && fi.IsDir()
+}
+
+// resolveSymlinks returns the symlink-resolved path, falling back to the cleaned
+// input when it can't be resolved (e.g. the path does not exist yet).
+func resolveSymlinks(p string) string {
+	if r, err := filepath.EvalSymlinks(p); err == nil {
+		return r
+	}
+	return filepath.Clean(p)
 }
 
 func runGit(dir string, args ...string) (string, error) {
