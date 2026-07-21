@@ -19,7 +19,7 @@ snapshot:
 # Publish. Normally you don't run this by hand — pushing a tag triggers
 # .github/workflows/release.yml, which runs the same command in CI. Doing it
 # locally needs GITHUB_TOKEN (repo + tap write access) and a pushed tag:
-#   git tag 0.0.1 && git push origin 0.0.1 && make release
+#   git tag 0.0.1beta.1 && git push origin 0.0.1beta.1 && make release
 release:
 	@command -v goreleaser >/dev/null || { echo "error: goreleaser required: go install github.com/goreleaser/goreleaser/v2@latest"; exit 1; }
 	goreleaser release --clean

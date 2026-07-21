@@ -5,7 +5,7 @@
 #   goreleaser build --snapshot --clean --single-target
 #
 # Real release (needs an authenticated gh/GITHUB_TOKEN and push rights):
-#   git tag 0.0.1 && git push origin 0.0.1
+#   git tag 0.0.1beta.1 && git push origin 0.0.1beta.1
 #   goreleaser release --clean
 version: 2
 
