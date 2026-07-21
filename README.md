@@ -24,15 +24,39 @@ All" while limiting the blast radius to the project it's already meant to edit.
 ## Requirements
 
 - Docker (Docker Desktop on macOS)
-- Go 1.25+ to build
+- Python 3.8+ to run the installer (Go 1.25+ only if you build from source)
 
 ## Install
 
 ```sh
+curl -fsSL https://raw.githubusercontent.com/Aegmis/sandbox-cli/main/install.py | python3 -
+```
+
+That detects your OS and CPU, downloads the matching release binary, verifies it
+against the release `SHA256SUMS`, and installs it to `~/.local/bin/sandbox-cli`
+(`%LOCALAPPDATA%\Programs\sandbox-cli` on Windows) — no root, no package manager.
+It prints a PATH hint if that directory isn't on your `PATH`.
+
+<details>
+<summary>Other ways to install</summary>
+
+```sh
+# a specific release, or a different directory
+python3 install.py --version 0.0.1beta.1 --dest ~/bin
+
+# while the repo is private, authenticate with a token
+GITHUB_TOKEN=ghp_... curl -fsSL https://raw.githubusercontent.com/Aegmis/sandbox-cli/main/install.py | python3 -
+
+# grab a binary by hand from the releases page
+#   https://github.com/Aegmis/sandbox-cli/releases
+
+# build from source (needs Go 1.25+)
 make install        # go install ./cmd/sandbox-cli
-# or
 make build          # -> bin/sandbox-cli
 ```
+
+Supported release targets: linux, macOS and Windows on amd64 and arm64.
+</details>
 
 ## Usage
 
