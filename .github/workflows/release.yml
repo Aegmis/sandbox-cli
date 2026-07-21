@@ -1,8 +1,8 @@
 name: release
 
 # Pushing a version tag publishes the release: cross-compiled archives for
-# linux/macOS/Windows on amd64+arm64, checksums, changelog, and the Homebrew
-# cask. Nothing is built on a laptop.
+# linux/macOS/Windows on amd64+arm64, checksums, and the changelog. Nothing is
+# built on a laptop.
 on:
   push:
     tags:
@@ -35,8 +35,3 @@ jobs:
         env:
           # Publishes the release in this repo.
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          # Only needed to push the Homebrew cask to Aegmis/homebrew-tap:
-          # a PAT with write access to that repo, stored as a repo secret.
-          # If the secret is absent this is empty, and .goreleaser.yaml skips
-          # the cask upload rather than failing the release.
-          HOMEBREW_TAP_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN }}

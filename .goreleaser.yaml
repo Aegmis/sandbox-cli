@@ -83,44 +83,4 @@ release:
     curl -fsSL https://raw.githubusercontent.com/Aegmis/sandbox-cli/main/install.sh | sh
     ```
 
-    Or with Homebrew:
-
-    ```sh
-    brew install Aegmis/tap/sandbox-cli
-    ```
-
     Verify downloads against `checksums.txt`.
-
-# Homebrew cask, pushed to github.com/Aegmis/homebrew-tap on release. Homebrew
-# distributes prebuilt binaries as casks, so this is the current equivalent of
-# the old `brews:` formula block.
-#
-# Publishing the cask needs the tap repository to exist and HOMEBREW_TAP_TOKEN to
-# be a PAT that can write to it (the default GITHUB_TOKEN only covers this repo).
-# When that variable is empty the cask is still generated into ./dist but the
-# upload is skipped, so a release does not fail before the tap is set up.
-homebrew_casks:
-  - name: sandbox-cli
-    binaries:
-      - sandbox-cli
-    skip_upload: '{{ if .Env.HOMEBREW_TAP_TOKEN }}false{{ else }}true{{ end }}'
-    repository:
-      owner: Aegmis
-      name: homebrew-tap
-      # Must be exactly {{ .Env.VAR }} — GoReleaser rejects any other
-      # interpolation in a token field.
-      token: "{{ .Env.HOMEBREW_TAP_TOKEN }}"
-    directory: Casks
-    homepage: https://github.com/Aegmis/sandbox-cli
-    description: Run AI coding agents in a disposable, isolated Docker container
-    license: mit
-    dependencies:
-      - cask: docker
-    # Strip the quarantine attribute so the unsigned binary runs on macOS
-    # without a Gatekeeper prompt.
-    hooks:
-      post:
-        install: |
-          if system_command("/usr/bin/xattr", args: ["-h"]).exit_status == 0
-            system_command "/usr/bin/xattr", args: ["-dr", "com.apple.quarantine", "#{staged_path}/sandbox-cli"]
-          end

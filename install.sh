@@ -4,10 +4,13 @@
 #
 #   curl -fsSL https://raw.githubusercontent.com/Aegmis/sandbox-cli/main/install.sh | sh
 #
-# Options (when run as a file, e.g. `sh install.sh --version 0.0.1beta.1`):
+# Options (when run as a file, e.g. `sh install.sh --version 0.0.1beta.2`):
 #   --version VER   install a specific release        (default: latest)
 #   --dest DIR      install directory                 (default: ~/.local/bin)
 #   --token TOK     GitHub token for a private repo   (or set GITHUB_TOKEN)
+#   --uninstall     remove the binary, then report what else is left behind
+#   --purge         with --uninstall: also delete ~/.config/sandbox (agent
+#                   logins!) and the sandbox Docker images and cache volumes
 #
 # POSIX sh; needs curl or wget, plus tar.
 
@@ -18,19 +21,87 @@ BINARY="sandbox-cli"
 VERSION=""
 DEST="${HOME}/.local/bin"
 TOKEN="${GITHUB_TOKEN:-${GH_TOKEN:-}}"
+UNINSTALL=0
+PURGE=0
 
 die() { printf 'error: %s\n' "$*" >&2; exit 1; }
 info() { printf '%s\n' "$*"; }
 
 while [ $# -gt 0 ]; do
   case "$1" in
-    --version) VERSION="${2:-}"; shift 2 ;;
-    --dest)    DEST="${2:-}"; shift 2 ;;
-    --token)   TOKEN="${2:-}"; shift 2 ;;
-    -h|--help) sed -n '2,14p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
+    --version)   VERSION="${2:-}"; shift 2 ;;
+    --dest)      DEST="${2:-}"; shift 2 ;;
+    --token)     TOKEN="${2:-}"; shift 2 ;;
+    --uninstall) UNINSTALL=1; shift ;;
+    --purge)     PURGE=1; shift ;;
+    -h|--help)   sed -n '2,15p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
     *) die "unknown option: $1" ;;
   esac
 done
+
+# ---- uninstall --------------------------------------------------------------
+# Deliberately conservative: the binary goes, everything else is only listed
+# unless --purge is given. ~/.config/sandbox holds your agent logins, so
+# deleting it silently would sign you out of Claude/Codex with no warning.
+if [ "$UNINSTALL" = 1 ]; then
+  cfg="${XDG_CONFIG_HOME:-${HOME}/.config}/sandbox"
+
+  # Docker may be absent or not running; never let that fail the uninstall.
+  sandbox_images() {
+    command -v docker >/dev/null 2>&1 || return 0
+    docker images --filter reference='sandbox-base' -q 2>/dev/null | sort -u
+  }
+  sandbox_volumes() {
+    command -v docker >/dev/null 2>&1 || return 0
+    docker volume ls --filter name='sandbox-cache-' -q 2>/dev/null
+  }
+
+  removed=0
+  for d in "$DEST" "${HOME}/.local/bin" /usr/local/bin; do
+    if [ -f "${d}/${BINARY}" ]; then
+      rm -f "${d}/${BINARY}"
+      info "removed ${d}/${BINARY}"
+      removed=1
+    fi
+  done
+  if [ "$removed" = 0 ]; then
+    info "no ${BINARY} binary found in ${DEST}, ~/.local/bin or /usr/local/bin"
+  fi
+
+  imgs=$(sandbox_images)
+  vols=$(sandbox_volumes)
+
+  if [ "$PURGE" = 1 ]; then
+    if [ -d "$cfg" ]; then
+      rm -rf "$cfg"
+      info "removed ${cfg}  (config + agent logins)"
+    fi
+    if [ -n "$imgs" ]; then
+      # Unquoted on purpose: one id per line, split into separate arguments.
+      docker rmi -f $imgs >/dev/null 2>&1 || true
+      info "removed sandbox-base image(s)"
+    fi
+    if [ -n "$vols" ]; then
+      docker volume rm $vols >/dev/null 2>&1 || true
+      info "removed sandbox-cache-* volume(s)"
+    fi
+    info "purge complete"
+  else
+    # Only print the "left behind" report when something actually is.
+    if [ -d "$cfg" ] || [ -n "$imgs" ] || [ -n "$vols" ]; then
+      info ""
+      info "Left in place — re-run with --uninstall --purge to delete these too:"
+      # `|| true` on each: a failed test is an AND-OR list with status 1, which
+      # `set -e` would otherwise treat as fatal and abort the report mid-way.
+      [ -d "$cfg" ] && info "  ${cfg}  (config + agent logins)" || true
+      [ -n "$imgs" ] && info "  sandbox-base image(s)      docker rmi \$(docker images -q sandbox-base)" || true
+      [ -n "$vols" ] && info "  sandbox-cache-* volume(s)  docker volume rm \$(docker volume ls -q -f name=sandbox-cache-)" || true
+    fi
+    info ""
+    info "Your projects and their .sandbox.yaml files are never touched."
+  fi
+  exit 0
+fi
 
 # ---- http helper (curl or wget) ---------------------------------------------
 if command -v curl >/dev/null 2>&1; then

@@ -44,9 +44,6 @@ that directory isn't on your `PATH`.
 <summary>Other ways to install</summary>
 
 ```sh
-# Homebrew (macOS and Linux)
-brew install Aegmis/tap/sandbox-cli
-
 # a specific release, or a different directory
 sh install.sh --version 0.0.1beta.2 --dest ~/bin
 
@@ -67,6 +64,31 @@ installer covers Linux and macOS only.
 
 Release targets: linux, macOS and Windows on amd64 and arm64.
 </details>
+
+## Uninstall
+
+```sh
+curl -fsSL https://raw.githubusercontent.com/Aegmis/sandbox-cli/main/install.sh | sh -s -- --uninstall
+```
+
+That removes the `sandbox-cli` binary and then *reports* what else is on disk
+without deleting it — because `~/.config/sandbox` holds your agent logins, and
+silently deleting it would sign you out of Claude/Codex with no warning. To
+remove everything, including those logins, the base image, and the cache volumes:
+
+```sh
+sh install.sh --uninstall --purge
+```
+
+| What | Where | Removed by |
+|---|---|---|
+| Binary | `~/.local/bin/sandbox-cli` (also checks `/usr/local/bin`) | `--uninstall` |
+| Config + agent logins | `~/.config/sandbox/` | `--purge` |
+| Base image | `sandbox-base:*` Docker images | `--purge` |
+| Package caches | `sandbox-cache-*` Docker volumes | `--purge` |
+
+Containers are `--rm`, so nothing lingers between runs. Your projects and their
+`.sandbox.yaml` files are never touched by either flag.
 
 ## Usage
 
