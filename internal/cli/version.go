@@ -5,7 +5,7 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/aegmis/sandbox-cli/internal/version"
+	"github.com/Aegmis/sandbox-cli/internal/version"
 )
 
 func newVersionCmd() *cobra.Command {

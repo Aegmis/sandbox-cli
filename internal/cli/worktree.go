@@ -7,7 +7,7 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/aegmis/sandbox-cli/internal/worktree"
+	"github.com/Aegmis/sandbox-cli/internal/worktree"
 )
 
 // newWorktreeCmd manages the sandbox-owned git worktrees used by `--worktree`.

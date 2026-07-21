@@ -7,7 +7,7 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/aegmis/sandbox-cli/internal/runtime"
+	"github.com/Aegmis/sandbox-cli/internal/runtime"
 )
 
 func newRunCmd() *cobra.Command {

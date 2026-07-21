@@ -6,8 +6,8 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/aegmis/sandbox-cli/internal/config"
-	"github.com/aegmis/sandbox-cli/internal/runtime"
+	"github.com/Aegmis/sandbox-cli/internal/config"
+	"github.com/Aegmis/sandbox-cli/internal/runtime"
 )
 
 // ResolveWorkspace determines the host directory to mount at /workspace and

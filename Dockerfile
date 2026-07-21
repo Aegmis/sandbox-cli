@@ -23,7 +23,7 @@ COPY . .
 # Static, stripped binary. CGO off so it runs on any linux/* base.
 RUN CGO_ENABLED=0 go build \
       -trimpath \
-      -ldflags "-s -w -X github.com/aegmis/sandbox-cli/internal/version.Version=${VERSION}" \
+      -ldflags "-s -w -X github.com/Aegmis/sandbox-cli/internal/version.Version=${VERSION}" \
       -o /out/sandbox-cli ./cmd/sandbox-cli
 
 # ---- runtime stage ----

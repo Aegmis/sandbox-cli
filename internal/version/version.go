@@ -2,7 +2,7 @@
 package version
 
 // Version is the sandbox-cli release version. Overridable at build time via
-// -ldflags "-X github.com/aegmis/sandbox-cli/internal/version.Version=x.y.z".
+// -ldflags "-X github.com/Aegmis/sandbox-cli/internal/version.Version=x.y.z".
 var Version = "0.0.1beta.1"
 
 // baseImageVersion is the tag of the base image. Bumping it invalidates any

@@ -8,7 +8,7 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/aegmis/sandbox-cli/internal/config"
+	"github.com/Aegmis/sandbox-cli/internal/config"
 )
 
 // claudeEnvAllow is the suggested (opt-in) set of host env vars forwarded to a

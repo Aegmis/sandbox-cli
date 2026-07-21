@@ -7,11 +7,11 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/aegmis/sandbox-cli/internal/config"
-	"github.com/aegmis/sandbox-cli/internal/image"
-	"github.com/aegmis/sandbox-cli/internal/runtime"
-	"github.com/aegmis/sandbox-cli/internal/sandbox"
-	"github.com/aegmis/sandbox-cli/internal/worktree"
+	"github.com/Aegmis/sandbox-cli/internal/config"
+	"github.com/Aegmis/sandbox-cli/internal/image"
+	"github.com/Aegmis/sandbox-cli/internal/runtime"
+	"github.com/Aegmis/sandbox-cli/internal/sandbox"
+	"github.com/Aegmis/sandbox-cli/internal/worktree"
 )
 
 // runFlags holds the persistent flag values shared by run/claude/codex.

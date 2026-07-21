@@ -5,8 +5,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/aegmis/sandbox-cli/internal/config"
-	"github.com/aegmis/sandbox-cli/internal/runtime"
+	"github.com/Aegmis/sandbox-cli/internal/config"
+	"github.com/Aegmis/sandbox-cli/internal/runtime"
 )
 
 func baseCfg() config.Config {

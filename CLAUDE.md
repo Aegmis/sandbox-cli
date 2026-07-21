@@ -77,4 +77,4 @@ separate from the host's real `~/.claude`. `--no-persist-auth` opts out.
 
 - Non-root by default (`user: sandbox`): agents refuse `--dangerously-skip-permissions` as root, and
   on macOS Docker Desktop bind-mount ownership is virtualized so files are still written as the host user.
-- Module path is `github.com/aegmis/sandbox-cli`. Standard library + `cobra` + `yaml.v3` only.
+- Module path is `github.com/Aegmis/sandbox-cli`. Standard library + `cobra` + `yaml.v3` only.
