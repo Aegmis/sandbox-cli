@@ -95,16 +95,16 @@ iptables -A OUTPUT -m conntrack --ctstate ESTABLISHED,RELATED -j ACCEPT
 iptables -A OUTPUT -p udp --dport 53 -j ACCEPT
 iptables -A OUTPUT -p tcp --dport 53 -j ACCEPT
 
-# Permit the resolved IPv4 addresses of each allowlisted domain.
-IFS=','
-for d in $allow; do
-  d="$(printf '%s' "$d" | tr -d '[:space:]')"
+# Permit the resolved IPv4 addresses of each allowlisted domain. Split the
+# comma-separated list into words via `tr` under the default IFS so the inner IP
+# loop also splits on whitespace/newlines — setting IFS=',' for the outer loop
+# would leak into the inner loop and keep multi-IP getent output as one bad word.
+for d in $(printf '%s' "$allow" | tr ',' ' '); do
   [ -z "$d" ] && continue
   for ip in $(getent ahostsv4 "$d" | awk '{print $1}' | sort -u); do
     iptables -A OUTPUT -d "$ip" -j ACCEPT
   done
 done
-unset IFS
 
 # Everything else outbound is rejected with a fast, visible error (not a hang).
 iptables -A OUTPUT -j REJECT --reject-with icmp-port-unreachable
