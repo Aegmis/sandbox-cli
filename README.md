@@ -45,7 +45,7 @@ that directory isn't on your `PATH`.
 
 ```sh
 # a specific release, or a different directory
-sh install.sh --version 0.0.1beta.2 --dest ~/bin
+sh install.sh --version 0.0.1beta.3 --dest ~/bin
 
 # while the repo is private, authenticate with a token
 GITHUB_TOKEN=ghp_... sh install.sh
