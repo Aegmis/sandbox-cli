@@ -1,4 +1,6 @@
 bin/
+bin-docker/
+dist/
 .git/
 *.md
 .sandbox.yaml
