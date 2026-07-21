@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/Aegmis/sandbox-cli/internal/version"
+	"github.com/Aegmis/sandbox-cli/internal/image"
 )
 
 // Config is the merged sandbox configuration.
@@ -219,7 +219,7 @@ func dedupePaths(in []string) []string {
 // Default returns the built-in base configuration.
 func Default() Config {
 	return Config{
-		Image:   version.BaseImage(),
+		Image:   image.Ref(),
 		Workdir: "/workspace",
 		// Non-root by default: agents like Claude Code refuse
 		// --dangerously-skip-permissions when running as root. On macOS Docker

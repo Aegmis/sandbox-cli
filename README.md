@@ -45,7 +45,7 @@ that directory isn't on your `PATH`.
 brew install Aegmis/tap/sandbox-cli
 
 # a specific release, or a different directory
-sh install.sh --version 0.0.1beta.1 --dest ~/bin
+sh install.sh --version 0.0.1 --dest ~/bin
 
 # while the repo is private, authenticate with a token
 GITHUB_TOKEN=ghp_... sh install.sh
@@ -303,7 +303,7 @@ CLI flags. Run `sandbox-cli config show` to see the effective config.
 
 ```yaml
 # .sandbox.yaml
-image: sandbox-base:0.1.1
+image: sandbox-base:0.1.1-9f95ae16   # default; tag is content-addressed
 workdir: /workspace
 user: sandbox           # non-root; agents refuse --dangerously-skip-permissions as root
 # runtime: kata-runtime # stronger isolation (microVM); or runsc for gVisor. default: runc

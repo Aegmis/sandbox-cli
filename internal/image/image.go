@@ -3,17 +3,34 @@ package image
 
 import (
 	"context"
+	"crypto/sha256"
 	_ "embed"
+	"encoding/hex"
 	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
 
 	"github.com/Aegmis/sandbox-cli/internal/runtime"
+	"github.com/Aegmis/sandbox-cli/internal/version"
 )
 
 //go:embed assets/Dockerfile
 var dockerfile []byte
+
+// Ref is the reference of the base image this build produces:
+//
+//	sandbox-base:<generation>-<short hash of the embedded Dockerfile>
+//
+// The hash makes the tag content-addressed, so editing assets/Dockerfile always
+// yields a new tag. EnsureImage then sees the image as absent and rebuilds it.
+// Relying on a hand-bumped version instead let four image changes ship under one
+// tag, leaving stale images that silently lacked the egress entrypoint and the
+// pre-created cache directories.
+func Ref() string {
+	sum := sha256.Sum256(dockerfile)
+	return "sandbox-base:" + version.BaseImageVersion + "-" + hex.EncodeToString(sum[:])[:8]
+}
 
 // Register wires the image builder into a DockerCLI runtime so EnsureImage can
 // build a missing base image. Call this once at startup.

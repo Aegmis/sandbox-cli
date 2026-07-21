@@ -20,7 +20,7 @@ Legend: **[A]** = covered by an automated test · **[M]** = manual verification.
    ```sh
    make build          # -> bin/sandbox-cli
    ```
-4. First run builds the base image (`sandbox-base:0.1.1`); allow a few minutes once:
+4. First run builds the base image (`sandbox-base:<gen>-<hash>`); allow a few minutes once:
    ```sh
    ./bin/sandbox-cli run --build --no-tty --no-metrics -- true
    ```
@@ -91,7 +91,8 @@ if installed via `make install`).
 **TC-01 [A/M] Binary builds and reports version**
 1. `make build`
 2. `./bin/sandbox-cli version`
-- Expected: prints `sandbox-cli <ver> (base image: sandbox-base:0.1.1)`.
+- Expected: prints `sandbox-cli <ver> (base image: sandbox-base:<gen>-<hash>)`. The
+  hash is derived from the embedded Dockerfile, so it changes whenever the image does.
 
 **TC-02 [M] Dockerfile builds a static binary**
 1. `docker build --target export --output type=local,dest=./bin-docker .`
@@ -146,7 +147,8 @@ if installed via `make install`).
 
 **TC-31 [M] `config show` reflects merged config**
 1. `./bin/sandbox-cli config show`
-- Expected: YAML with `user: sandbox`, `workdir: /workspace`, `home: /sandbox/home`, `image: sandbox-base:0.1.1`.
+- Expected: YAML with `user: sandbox`, `workdir: /workspace`, `home: /sandbox/home`, and an
+  `image:` of `sandbox-base:<gen>-<hash>`.
 
 **TC-32 [A] Project config overrides defaults; flags override config**
 1. In `/tmp/proj/.sandbox.yaml` set `image: my-image:9` and `user: root`.
