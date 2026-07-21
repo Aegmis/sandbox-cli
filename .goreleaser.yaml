@@ -6,7 +6,13 @@
 #
 # Real release (needs an authenticated gh/GITHUB_TOKEN and push rights):
 #   git tag 0.0.1beta.1 && git push origin 0.0.1beta.1
-#   goreleaser release --clean
+#   goreleaser release --clean --skip=validate
+#
+# --skip=validate is required because our tags are not valid semver
+# ("0.0.1beta.1" — semver would want "v0.0.1-beta.1"), and GoReleaser parses the
+# tag as semver during validation. Skipping it also disables the dirty-worktree
+# and tag-matches-HEAD checks, so release from a clean checkout of the tag.
+# Switching to semver tags later would let this flag be dropped.
 version: 2
 
 project_name: sandbox-cli
@@ -60,8 +66,10 @@ changelog:
       - Merge pull request
 
 release:
-  # Tags containing beta/rc/alpha are published as pre-releases.
-  prerelease: auto
+  # Explicitly true rather than `auto`: auto-detection parses the tag as semver,
+  # and ours ("0.0.1beta.1") is not valid semver, so it cannot infer the
+  # pre-release marker. Set this to false for a stable release.
+  prerelease: true
   draft: false
   footer: |
     ## Install

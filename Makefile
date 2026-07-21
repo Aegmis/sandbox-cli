@@ -22,7 +22,7 @@ snapshot:
 #   git tag 0.0.1beta.1 && git push origin 0.0.1beta.1 && make release
 release:
 	@command -v goreleaser >/dev/null || { echo "error: goreleaser required: go install github.com/goreleaser/goreleaser/v2@latest"; exit 1; }
-	goreleaser release --clean
+	goreleaser release --clean --skip=validate
 
 # One binary for this machine, built in Docker. -> bin/sandbox-cli
 docker-build:

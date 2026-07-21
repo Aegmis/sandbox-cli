@@ -31,7 +31,7 @@ jobs:
       - uses: goreleaser/goreleaser-action@v6
         with:
           version: "~> v2"
-          args: release --clean
+          args: release --clean --skip=validate
         env:
           # Publishes the release in this repo.
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
