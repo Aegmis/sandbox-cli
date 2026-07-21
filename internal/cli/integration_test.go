@@ -291,7 +291,9 @@ func TestCachePersistsAndWritable(t *testing.T) {
 			Project: proj,
 			TTY:     ptr(false),
 			Cache:   true,
-			Command: []string{"sh", "-c", cmd + " > /workspace/out.txt 2>&1 || true"},
+			// Braces so the redirect captures the whole command (not just its
+			// last statement), e.g. both `id -un` and `echo WROTE`.
+			Command: []string{"sh", "-c", "{ " + cmd + " ; } > /workspace/out.txt 2>&1 || true"},
 		}, false); err != nil {
 			t.Fatalf("run error: %v", err)
 		}
