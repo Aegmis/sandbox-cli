@@ -315,14 +315,14 @@ Because these are real `git worktree` entries, the branch shows up in your repo
 immediately — everything below runs from your normal checkout:
 
 ```sh
-# 1. Run the agent on its own branch
-sandbox-cli claude --worktree feature-a -- -p "implement A"
+# 1. Run the agent on its own branch — --git lets it commit as you
+sandbox-cli claude --worktree feature-a --git -- -p "implement A, then commit"
 
 # 2. See what it did (the branch is already in your repo)
 git log feature-a
 git diff main...feature-a
 
-# 3. If it left work uncommitted, commit it — no cd required
+# 3. Commit anything it left behind — no cd required
 sandbox-cli worktree git feature-a status
 sandbox-cli worktree commit feature-a -m "implement A"
 
@@ -334,9 +334,14 @@ git merge feature-a
 sandbox-cli worktree rm feature-a
 ```
 
-Step 3 is only needed when the agent left changes uncommitted — a `--worktree`
-run tells you when that's the case. If the agent committed its own work, go
-straight from 2 to 4.
+**The agent can commit its own work.** git is fully usable inside a worktree
+sandbox, so you can just tell Claude to commit as it goes and skip step 3 —
+`git log feature-a` will already show its commits. Add `--git` so those commits
+carry your name and email; without it git in the container has no identity and
+the commit fails with *"Please tell me who you are"*.
+
+Step 3 is the fallback for when the agent didn't commit — a `--worktree` run
+tells you when there's anything left over.
 
 Step 5 deletes the worktree directory, not the branch. Until you run it, `git
 checkout feature-a` in your main copy fails with *"already checked out"* — that's
@@ -376,15 +381,15 @@ work exists nowhere else; commit or copy it first, or `--force` to discard it:
 sandbox-cli worktree rm --force BRANCH   # permanent
 ```
 
-**git works inside a worktree sandbox.** A worktree's `.git` is a pointer file
-holding an absolute path into the parent repo, which is outside the workspace —
-so sandbox-cli also mounts the parent repo's `.git` directory at that same path.
-Without it every git command in the container would fail with `not a git
-repository`, and the agent could edit files but never commit them. This is a
-third host path reaching outside `/workspace`, and it is read-write: an agent in
-a worktree sandbox can write to your repository's object store and refs (its own
-branch, but also others). It applies whenever the workspace is a worktree,
-including running `sandbox-cli` from one directly without `--worktree`.
+**How the agent can commit.** A worktree's `.git` is a pointer file holding an
+absolute path into the parent repo, which is outside the workspace — so
+sandbox-cli also mounts the parent repo's `.git` directory at that same path.
+Without it every git command in the container fails with `not a git repository`
+and the agent can edit files but never commit them. This is a third host path
+reaching outside `/workspace`, and it is read-write: an agent in a worktree
+sandbox can write to your repository's object store and refs (its own branch, but
+also others). It applies whenever the workspace is a worktree, including running
+`sandbox-cli` from one directly without `--worktree`.
 
 A few more things worth knowing:
 
