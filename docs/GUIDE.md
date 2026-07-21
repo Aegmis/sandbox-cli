@@ -215,21 +215,41 @@ sandbox-cli: created worktree "feature-a" at /Users/you/.config/sandbox/worktree
 
 Your own checkout never changes branch and never gets modified.
 
-**Getting the work back.** These are real `git worktree` entries, so the branches
-are visible in your repo the moment they're created — no fetching or copying:
+**Getting the work back.** These are real `git worktree` entries, so the branch is
+visible in your repo the moment it's created — no fetching or copying. The whole
+cycle runs from your normal checkout:
 
 ```sh
-git log feature-a               # inspect without switching
+# 1. Run the agent on its own branch
+sandbox-cli claude --worktree feature-a -- -p "implement A"
+
+# 2. See what it did
+git log feature-a
 git diff main...feature-a
-git checkout feature-a          # or switch to it properly
-git merge feature-a             # from main, when you're happy
+
+# 3. Commit anything it left uncommitted (skip if it committed its own work)
+sandbox-cli worktree git feature-a status
+sandbox-cli worktree commit feature-a -m "implement A"
+
+# 4. Merge
+git checkout main
+git merge feature-a
+
+# 5. Clean up
+sandbox-cli worktree rm feature-a
 ```
 
-**Managing them:**
+Step 4 is ordinary git — nothing sandbox-specific. If the merge conflicts, resolve
+it exactly as you would for any branch.
+
+**The commands:**
 
 ```sh
-sandbox-cli worktree list       # branch -> path
-sandbox-cli worktree rm feature-a
+sandbox-cli worktree list                    # branch -> path
+sandbox-cli worktree path BRANCH             # just the path, for scripts
+sandbox-cli worktree git BRANCH <git args>   # run git in there, by branch name
+sandbox-cli worktree commit BRANCH -m MSG    # stage everything and commit
+sandbox-cli worktree rm BRANCH               # remove when you're done
 ```
 
 **You don't need to go into the worktree directory.** Committed work is already
@@ -271,13 +291,14 @@ sandbox-cli: worktree "feature-a" has uncommitted changes:
 your repo. If the worktree has uncommitted work it refuses:
 
 ```
-worktree for branch "feature/test1" has uncommitted work at
-  /Users/you/.config/sandbox/worktrees/sandbox-cli-82799c04/feature-test1
-Commit or copy it first, then re-run. To discard it: sandbox-cli worktree rm --force feature/test1
+worktree for branch "feature-a" has uncommitted work at
+  /Users/you/.config/sandbox/worktrees/myapp-f379c0cd/feature-a
+Commit it first:  sandbox-cli worktree commit feature-a -m "..."
+Or discard it:    sandbox-cli worktree rm --force feature-a
 ```
 
-That work exists in exactly one place, so commit it (from inside the worktree, or
-from the sandbox) or copy it out before using `--force`.
+That work exists in exactly one place, so commit it before reaching for
+`--force` — the flag deletes it permanently.
 
 **Committing from inside the sandbox works.** A worktree's `.git` is a pointer
 file to a path inside the parent repo, which isn't part of the workspace — so

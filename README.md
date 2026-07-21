@@ -309,41 +309,57 @@ path — not your working copy — becomes `/workspace` inside the container, so
 agent only ever sees its own branch. Your checkout is untouched and stays on
 whatever branch you had.
 
-Because these are real `git worktree` entries, the branches show up in your repo
-immediately. Review a result with a normal `git checkout BRANCH`, or diff it
-without switching:
+### The full cycle
+
+Because these are real `git worktree` entries, the branch shows up in your repo
+immediately — everything below runs from your normal checkout:
 
 ```sh
-git log feature-a          # the agent's commits, from your main checkout
+# 1. Run the agent on its own branch
+sandbox-cli claude --worktree feature-a -- -p "implement A"
+
+# 2. See what it did (the branch is already in your repo)
+git log feature-a
 git diff main...feature-a
-git checkout feature-a     # when you're ready to look properly
-```
 
-Manage them with:
-
-```sh
-sandbox-cli worktree list          # branch -> path
-sandbox-cli worktree path BRANCH   # just the path, for scripts
-sandbox-cli worktree rm BRANCH     # remove one when you're done
-```
-
-**You never have to `cd` into that directory.** Work the agent left uncommitted
-can be inspected and committed by branch name, from your own checkout:
-
-```sh
-sandbox-cli worktree git feature-a status     # any git command, run in there
-sandbox-cli worktree git feature-a diff
+# 3. If it left work uncommitted, commit it — no cd required
+sandbox-cli worktree git feature-a status
 sandbox-cli worktree commit feature-a -m "implement A"
+
+# 4. Merge it
+git checkout main
+git merge feature-a
+
+# 5. Clean up
+sandbox-cli worktree rm feature-a
 ```
 
-`worktree commit` stages everything (including untracked files) and commits it,
-which puts the work on the branch where the rest of your git tools can see it.
-`worktree git` passes anything after the branch name straight to git for
-everything else — output and exit code included, so it scripts cleanly and your
-git config, hooks and commit signing all still apply.
+Step 3 is only needed when the agent left changes uncommitted — a `--worktree`
+run tells you when that's the case. If the agent committed its own work, go
+straight from 2 to 4.
 
-A `--worktree` run tells you when there's something to deal with, so it doesn't
-surface days later as a confusing `worktree rm` refusal:
+Step 5 deletes the worktree directory, not the branch. Until you run it, `git
+checkout feature-a` in your main copy fails with *"already checked out"* — that's
+git protecting the worktree, not an error.
+
+### Commands
+
+```sh
+sandbox-cli worktree list                    # branch -> path
+sandbox-cli worktree path BRANCH             # just the path, for scripts
+sandbox-cli worktree git BRANCH <git args>   # run git in there, by branch name
+sandbox-cli worktree commit BRANCH -m MSG    # stage everything and commit
+sandbox-cli worktree rm BRANCH               # remove when you're done
+```
+
+**You never have to `cd` into that directory** — the worktree is addressable by
+branch name. `worktree commit` stages everything (including untracked files) and
+commits it; `worktree git` forwards anything after the branch name straight to
+git, output and exit code included, so it scripts cleanly and your git config,
+hooks and commit signing all still apply.
+
+A run tells you when there's uncommitted work, so it doesn't surface days later
+as a confusing `worktree rm` refusal:
 
 ```
 sandbox-cli: worktree "feature-a" has uncommitted changes:
