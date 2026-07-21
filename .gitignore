@@ -2,3 +2,4 @@
 /bin-docker/
 /dist/
 /.claude/
+__pycache__/
