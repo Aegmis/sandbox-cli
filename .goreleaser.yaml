@@ -90,18 +90,21 @@ release:
 # distributes prebuilt binaries as casks, so this is the current equivalent of
 # the old `brews:` formula block.
 #
-# The tap repository must exist and the release token must be able to write to
-# it — comment this block out until then.
+# Publishing the cask needs the tap repository to exist and HOMEBREW_TAP_TOKEN to
+# be a PAT that can write to it (the default GITHUB_TOKEN only covers this repo).
+# When that variable is empty the cask is still generated into ./dist but the
+# upload is skipped, so a release does not fail before the tap is set up.
 homebrew_casks:
   - name: sandbox-cli
     binaries:
       - sandbox-cli
+    skip_upload: '{{ if .Env.HOMEBREW_TAP_TOKEN }}false{{ else }}true{{ end }}'
     repository:
       owner: Aegmis
       name: homebrew-tap
-      # A PAT with write access to the tap repo; the default GITHUB_TOKEN can
-      # only write to this repository. Falls back to it for local runs.
-      token: "{{ if index .Env \"HOMEBREW_TAP_TOKEN\" }}{{ .Env.HOMEBREW_TAP_TOKEN }}{{ else }}{{ .Env.GITHUB_TOKEN }}{{ end }}"
+      # Must be exactly {{ .Env.VAR }} — GoReleaser rejects any other
+      # interpolation in a token field.
+      token: "{{ .Env.HOMEBREW_TAP_TOKEN }}"
     directory: Casks
     homepage: https://github.com/Aegmis/sandbox-cli
     description: Run AI coding agents in a disposable, isolated Docker container
