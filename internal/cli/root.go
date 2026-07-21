@@ -117,6 +117,19 @@ func newSession(rf *runFlags) (*sandbox.Session, sandbox.Options, error) {
 		opts.Project = info.Path
 	}
 
+	// A git worktree's .git is a pointer file holding an absolute host path into
+	// the parent repo, which lives outside the workspace. Without the parent .git
+	// mounted at that same path, every git command inside the container fails with
+	// "not a git repository" — the agent could edit files but never commit them.
+	// Applies both to --worktree and to running from a worktree directly.
+	projectDir := opts.Project
+	if projectDir == "" {
+		projectDir, _ = os.Getwd()
+	}
+	if gitDir, ok := worktree.GitCommonDir(config.ExpandTilde(projectDir)); ok {
+		opts.ExtraMounts = append(opts.ExtraMounts, gitDir+":"+gitDir+":rw")
+	}
+
 	// Persist agent login in a dedicated, sandbox-owned host dir mounted as the
 	// agent's whole HOME, so login survives the ephemeral container.
 	if rf.persistName != "" && !rf.noPersistAuth {

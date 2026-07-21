@@ -113,12 +113,37 @@ sandbox-cli init
 
 For `sandbox-cli claude` / `sandbox-cli codex`, **everything you type is forwarded to the
 agent** — so `sandbox-cli claude --dangerously-skip-permissions` just works, and there
-are no collisions with sandbox's own flags. To set a sandbox option for a wrapped
-agent, put it before a `--` separator:
+are no collisions with sandbox's own flags.
+
+The rule is one sentence: **a leading run of sandbox long-flags is consumed by
+sandbox; the first token that isn't one ends the sandbox portion, and everything
+from there goes to the agent verbatim.** A short flag, a positional, an unknown
+long flag, or an explicit `--` all end it.
 
 ```sh
-sandbox-cli claude --project ~/app -- --dangerously-skip-permissions
-sandbox-cli codex  --no-tty       -- exec 'run the tests'
+#              ├── sandbox ──┤  ├──── claude ────┤
+sandbox-cli claude --worktree feature-a -- -p "implement A"
+sandbox-cli claude --worktree feature-a    -p "implement A"   # same thing
+```
+
+The `--` is optional here because `-p` is a short flag, which always ends the
+sandbox portion. Writing it is still the clearer habit, and it's *required* when
+the first agent argument is a positional or would otherwise be ambiguous.
+
+Order is what matters, not the separator. A sandbox flag placed **after** the
+boundary is forwarded to the agent instead of being applied to the sandbox:
+
+```sh
+sandbox-cli claude --worktree feature-a --model opus     # ✅ worktree applies
+sandbox-cli claude --model opus --worktree feature-a     # ❌ --worktree goes to claude
+```
+
+`--model` isn't a sandbox flag, so it ends the sandbox portion — and the
+`--worktree` after it is passed straight through to Claude, which will reject it.
+When in doubt, put every sandbox flag first and confirm with `--dry-run`:
+
+```sh
+sandbox-cli claude --worktree feature-a --dry-run -- -p "implement A"
 ```
 
 `sandbox-cli run` uses the opposite default: sandbox flags first, the command after `--`
@@ -273,14 +298,88 @@ sandbox-cli claude --worktree feature-b -- -p "implement B"   # in parallel
 ```
 
 The worktree is created from the current HEAD if the branch doesn't exist, and
-lives in a sandbox-owned directory (under `~/.config/sandbox/worktrees/`) so your
-project folder stays clean. Review a result with a normal `git checkout BRANCH`.
+lives in a sandbox-owned directory so your project folder stays clean:
+
+```
+~/.config/sandbox/worktrees/<repo>-<hash>/<branch>
+```
+
+The `<hash>` disambiguates same-named repos in different locations. That worktree
+path — not your working copy — becomes `/workspace` inside the container, so the
+agent only ever sees its own branch. Your checkout is untouched and stays on
+whatever branch you had.
+
+Because these are real `git worktree` entries, the branches show up in your repo
+immediately. Review a result with a normal `git checkout BRANCH`, or diff it
+without switching:
+
+```sh
+git log feature-a          # the agent's commits, from your main checkout
+git diff main...feature-a
+git checkout feature-a     # when you're ready to look properly
+```
+
 Manage them with:
 
 ```sh
-sandbox-cli worktree list        # branch -> path
-sandbox-cli worktree rm BRANCH   # remove one when you're done
+sandbox-cli worktree list          # branch -> path
+sandbox-cli worktree path BRANCH   # just the path, for scripts
+sandbox-cli worktree rm BRANCH     # remove one when you're done
 ```
+
+**You never have to `cd` into that directory.** Work the agent left uncommitted
+can be inspected and committed by branch name, from your own checkout:
+
+```sh
+sandbox-cli worktree git feature-a status     # any git command, run in there
+sandbox-cli worktree git feature-a diff
+sandbox-cli worktree commit feature-a -m "implement A"
+```
+
+`worktree commit` stages everything (including untracked files) and commits it,
+which puts the work on the branch where the rest of your git tools can see it.
+`worktree git` passes anything after the branch name straight to git for
+everything else — output and exit code included, so it scripts cleanly and your
+git config, hooks and commit signing all still apply.
+
+A `--worktree` run tells you when there's something to deal with, so it doesn't
+surface days later as a confusing `worktree rm` refusal:
+
+```
+sandbox-cli: worktree "feature-a" has uncommitted changes:
+  src/api.ts
+  README.md
+  Commit with: sandbox-cli worktree commit feature-a -m "..."
+```
+
+`worktree rm` removes the worktree directory, not the branch — your commits
+survive. It refuses if the worktree has modified or untracked files, since that
+work exists nowhere else; commit or copy it first, or `--force` to discard it:
+
+```sh
+sandbox-cli worktree rm --force BRANCH   # permanent
+```
+
+**git works inside a worktree sandbox.** A worktree's `.git` is a pointer file
+holding an absolute path into the parent repo, which is outside the workspace —
+so sandbox-cli also mounts the parent repo's `.git` directory at that same path.
+Without it every git command in the container would fail with `not a git
+repository`, and the agent could edit files but never commit them. This is a
+third host path reaching outside `/workspace`, and it is read-write: an agent in
+a worktree sandbox can write to your repository's object store and refs (its own
+branch, but also others). It applies whenever the workspace is a worktree,
+including running `sandbox-cli` from one directly without `--worktree`.
+
+A few more things worth knowing:
+
+- **Untracked files don't come along.** A worktree starts from a committed tree,
+  so anything in `.gitignore` or not yet committed (a local `.env`, `node_modules`)
+  won't be there. Mount what's needed with `--mount`, or let the agent reinstall.
+- **The branch is checked out in the worktree**, so you can't `git checkout` the
+  same branch in your main copy while it exists. Use `worktree rm` first.
+- **One container per worktree.** Parallel runs on the *same* branch would collide;
+  give each agent its own.
+- **Requires git** — it's the only feature that does.
 
 ## Stronger isolation (microVM / gVisor)
 
@@ -394,7 +493,9 @@ secrets:              # broker: resolve at run time, forward by name (never on t
   (`--rm`). The `claude` / `codex` wrappers add two more host paths by default,
   both scoped and both opt-out: the sandbox-owned agent home
   (`~/.config/sandbox/agents/<agent>`, `--no-persist-auth`) and your Claude
-  history for the current project (`--no-sync`). Anything else needs `--mount`.
+  history for the current project (`--no-sync`). When the workspace is a git
+  worktree, the parent repo's `.git` is mounted read-write too — git cannot work
+  otherwise. Anything else needs `--mount`.
 - **The host home is never mounted.** sandbox refuses to mount `/`, your home
   directory, or any ancestor of it as the workspace.
 - **Default-deny credentials.** Nothing from your host env crosses the boundary

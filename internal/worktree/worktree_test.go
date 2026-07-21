@@ -101,7 +101,7 @@ func TestResolveAndList_RealGit(t *testing.T) {
 	}
 
 	// Remove it.
-	if err := Remove(repo, "feature/x"); err != nil {
+	if err := Remove(repo, "feature/x", false); err != nil {
 		t.Fatal(err)
 	}
 	if isDir(info.Path) {
@@ -125,5 +125,211 @@ func runOrSkip(t *testing.T, git, dir string, args ...string) {
 	cmd.Dir = dir
 	if out, err := cmd.CombinedOutput(); err != nil {
 		t.Skipf("git %v failed (%v): %s", args, err, out)
+	}
+}
+
+// GitCommonDir must report nothing for an ordinary repository (its .git is a
+// directory, already inside the mounted workspace) and the parent repo's .git
+// for a worktree (whose .git is a pointer file to a path outside it).
+func TestGitCommonDir(t *testing.T) {
+	git, err := exec.LookPath("git")
+	if err != nil {
+		t.Skip("git not available")
+	}
+	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
+
+	repo := t.TempDir()
+	runOrSkip(t, git, repo, "init", "-q", ".")
+	runOrSkip(t, git, repo, "config", "user.email", "t@example.com")
+	runOrSkip(t, git, repo, "config", "user.name", "t")
+	if err := os.WriteFile(filepath.Join(repo, "f.txt"), []byte("hi\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	runOrSkip(t, git, repo, "add", "-A")
+	runOrSkip(t, git, repo, "commit", "-qm", "init")
+
+	// A normal checkout needs no extra mount.
+	if p, ok := GitCommonDir(repo); ok {
+		t.Errorf("GitCommonDir(main repo) = %q, true; want ok=false", p)
+	}
+
+	// A worktree resolves to the parent repo's .git.
+	info, err := Resolve(repo, "feature/x")
+	if err != nil {
+		t.Fatal(err)
+	}
+	got, ok := GitCommonDir(info.Path)
+	if !ok {
+		t.Fatalf("GitCommonDir(worktree) returned ok=false; want the parent .git")
+	}
+	want, err := filepath.EvalSymlinks(filepath.Join(repo, ".git"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if resolved, _ := filepath.EvalSymlinks(got); resolved != want {
+		t.Errorf("GitCommonDir(worktree) = %q, want %q", resolved, want)
+	}
+
+	// Not a repository at all.
+	if p, ok := GitCommonDir(t.TempDir()); ok {
+		t.Errorf("GitCommonDir(non-repo) = %q, true; want ok=false", p)
+	}
+}
+
+// Remove must refuse to destroy uncommitted work unless --force is given.
+func TestRemove_RefusesDirtyWorktreeWithoutForce(t *testing.T) {
+	git, err := exec.LookPath("git")
+	if err != nil {
+		t.Skip("git not available")
+	}
+	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
+
+	repo := t.TempDir()
+	runOrSkip(t, git, repo, "init", "-q", ".")
+	runOrSkip(t, git, repo, "config", "user.email", "t@example.com")
+	runOrSkip(t, git, repo, "config", "user.name", "t")
+	if err := os.WriteFile(filepath.Join(repo, "f.txt"), []byte("hi\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	runOrSkip(t, git, repo, "add", "-A")
+	runOrSkip(t, git, repo, "commit", "-qm", "init")
+
+	info, err := Resolve(repo, "dirty")
+	if err != nil {
+		t.Fatal(err)
+	}
+	// Untracked file: exists only here, so removal must be refused.
+	if err := os.WriteFile(filepath.Join(info.Path, "scratch.txt"), []byte("work\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	err = Remove(repo, "dirty", false)
+	if err == nil {
+		t.Fatal("Remove without --force deleted a dirty worktree; want refusal")
+	}
+	if !strings.Contains(err.Error(), "uncommitted work") {
+		t.Errorf("error should explain the refusal, got: %v", err)
+	}
+	if !isDir(info.Path) {
+		t.Error("worktree was removed despite the error")
+	}
+
+	if err := Remove(repo, "dirty", true); err != nil {
+		t.Fatalf("Remove with --force: %v", err)
+	}
+	if isDir(info.Path) {
+		t.Error("worktree dir still present after forced Remove")
+	}
+}
+
+func TestPathAndDirty(t *testing.T) {
+	git, err := exec.LookPath("git")
+	if err != nil {
+		t.Skip("git not available")
+	}
+	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
+
+	repo := t.TempDir()
+	runOrSkip(t, git, repo, "init", "-q", ".")
+	runOrSkip(t, git, repo, "config", "user.email", "t@example.com")
+	runOrSkip(t, git, repo, "config", "user.name", "t")
+	if err := os.WriteFile(filepath.Join(repo, "f.txt"), []byte("hi\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	runOrSkip(t, git, repo, "add", "-A")
+	runOrSkip(t, git, repo, "commit", "-qm", "init")
+
+	// Path reports the location before the worktree exists, but exists=false.
+	p, exists, err := Path(repo, "wip")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if exists {
+		t.Errorf("Path reports exists=true before creation: %s", p)
+	}
+	// Nothing to warn about when there is no worktree.
+	if got := Dirty(repo, "wip", 10); got != nil {
+		t.Errorf("Dirty on a missing worktree = %v, want nil", got)
+	}
+
+	info, err := Resolve(repo, "wip")
+	if err != nil {
+		t.Fatal(err)
+	}
+	p, exists, err = Path(repo, "wip")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !exists || p != info.Path {
+		t.Errorf("Path = (%q, %v), want (%q, true)", p, exists, info.Path)
+	}
+	// A clean worktree must not warn.
+	if got := Dirty(repo, "wip", 10); got != nil {
+		t.Errorf("Dirty on a clean worktree = %v, want nil", got)
+	}
+
+	// Modified and untracked files are both reported.
+	if err := os.WriteFile(filepath.Join(info.Path, "f.txt"), []byte("changed\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(info.Path, "new.txt"), []byte("x\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	got := Dirty(repo, "wip", 10)
+	if len(got) != 2 {
+		t.Fatalf("Dirty = %v, want 2 entries", got)
+	}
+	joined := strings.Join(got, ",")
+	if !strings.Contains(joined, "f.txt") || !strings.Contains(joined, "new.txt") {
+		t.Errorf("Dirty = %v, want both f.txt and new.txt", got)
+	}
+
+	// limit caps the result so the warning stays short.
+	if got := Dirty(repo, "wip", 1); len(got) != 1 {
+		t.Errorf("Dirty with limit 1 = %v, want 1 entry", got)
+	}
+}
+
+// Dirty must report renames and paths needing quoting correctly. Plain
+// --porcelain renders these as "R  old -> new" and "\"weird name.txt\"", which a
+// naive line[3:] parse would surface to the user verbatim.
+func TestDirty_RenamesAndAwkwardPaths(t *testing.T) {
+	git, err := exec.LookPath("git")
+	if err != nil {
+		t.Skip("git not available")
+	}
+	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
+
+	repo := t.TempDir()
+	runOrSkip(t, git, repo, "init", "-q", ".")
+	runOrSkip(t, git, repo, "config", "user.email", "t@example.com")
+	runOrSkip(t, git, repo, "config", "user.name", "t")
+	for _, n := range []string{"old.txt", "keep.txt"} {
+		if err := os.WriteFile(filepath.Join(repo, n), []byte("x\n"), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	runOrSkip(t, git, repo, "add", "-A")
+	runOrSkip(t, git, repo, "commit", "-qm", "init")
+
+	info, err := Resolve(repo, "awkward")
+	if err != nil {
+		t.Fatal(err)
+	}
+	runOrSkip(t, git, info.Path, "mv", "old.txt", "new.txt")
+	if err := os.WriteFile(filepath.Join(info.Path, "weird name.txt"), []byte("y\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	got := Dirty(repo, "awkward", 0)
+	want := map[string]bool{"new.txt": true, "weird name.txt": true}
+	if len(got) != len(want) {
+		t.Fatalf("Dirty = %v, want %d entries (%v)", got, len(want), want)
+	}
+	for _, f := range got {
+		if !want[f] {
+			t.Errorf("unexpected entry %q in %v; renames should report the destination "+
+				"and paths must not be quoted", f, got)
+		}
 	}
 }

@@ -3,11 +3,13 @@ package cli
 import (
 	"context"
 	"fmt"
+	"os"
 	"strings"
 
 	"github.com/spf13/cobra"
 
 	"github.com/Aegmis/sandbox-cli/internal/runtime"
+	"github.com/Aegmis/sandbox-cli/internal/worktree"
 )
 
 func newRunCmd() *cobra.Command {
@@ -126,8 +128,36 @@ func execute(rf *runFlags, guest []string) error {
 	if err != nil {
 		return err
 	}
+	warnDirtyWorktree(rf)
 	exitCode = code
 	return nil
+}
+
+// warnDirtyWorktree points out work the agent left uncommitted in a --worktree
+// run. It lives only in the worktree directory, and without a nudge here the
+// user typically discovers it much later as a `worktree rm` refusal.
+func warnDirtyWorktree(rf *runFlags) {
+	if rf.worktree == "" {
+		return
+	}
+	repoDir := rf.project
+	if repoDir == "" {
+		repoDir, _ = os.Getwd()
+	}
+	const show = 5
+	files := worktree.Dirty(repoDir, rf.worktree, show+1)
+	if len(files) == 0 {
+		return
+	}
+	fmt.Fprintf(os.Stderr, "\nsandbox-cli: worktree %q has uncommitted changes:\n", rf.worktree)
+	for i, f := range files {
+		if i == show {
+			fmt.Fprintf(os.Stderr, "  … and more\n")
+			break
+		}
+		fmt.Fprintf(os.Stderr, "  %s\n", f)
+	}
+	fmt.Fprintf(os.Stderr, "  Commit with: sandbox-cli worktree commit %s -m \"...\"\n", rf.worktree)
 }
 
 // dockerCommandLine renders the docker invocation for --dry-run, quoting args

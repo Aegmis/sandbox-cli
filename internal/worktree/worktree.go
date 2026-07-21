@@ -108,17 +108,166 @@ func List(dir string) ([]Info, error) {
 	return infos, nil
 }
 
-// Remove deletes the sandbox worktree for branch (git worktree remove).
-func Remove(dir, branch string) error {
+// Remove deletes the sandbox worktree for branch (git worktree remove). When
+// force is false git refuses if the worktree holds modified or untracked files,
+// which is the safe default: those edits exist nowhere else.
+func Remove(dir, branch string, force bool) error {
 	root, err := RepoRoot(dir)
 	if err != nil {
 		return err
 	}
 	path := worktreePath(root, branch)
-	if _, err := runGit(root, "worktree", "remove", path); err != nil {
+	args := []string{"worktree", "remove"}
+	if force {
+		args = append(args, "--force")
+	}
+	args = append(args, path)
+	if _, err := runGit(root, args...); err != nil {
+		if !force && strings.Contains(err.Error(), "use --force") {
+			return fmt.Errorf("worktree for branch %q has uncommitted work at\n  %s\n"+
+				"Commit it first:  sandbox-cli worktree commit %s -m \"...\"\n"+
+				"Or discard it:    sandbox-cli worktree rm --force %s",
+				branch, path, branch, branch)
+		}
 		return fmt.Errorf("removing worktree for branch %q: %w", branch, err)
 	}
 	return nil
+}
+
+// Path returns the managed worktree path for branch in the repo containing dir,
+// and whether that worktree currently exists. It is the scriptable form of
+// List — `cd "$(sandbox-cli worktree path BRANCH)"` — so nobody has to type the
+// sandbox-owned directory by hand.
+func Path(dir, branch string) (path string, exists bool, err error) {
+	branch = strings.TrimSpace(branch)
+	if branch == "" {
+		return "", false, fmt.Errorf("worktree: empty branch name")
+	}
+	root, err := RepoRoot(dir)
+	if err != nil {
+		return "", false, err
+	}
+	path = worktreePath(root, branch)
+	return path, isDir(path), nil
+}
+
+// Dirty reports the paths of modified or untracked files in the worktree for
+// branch, capped at limit entries (0 = uncapped). Used to warn at exit that work
+// lives only in the worktree, rather than letting it surface much later as a
+// confusing `worktree rm` refusal. Any error yields no paths: this is a
+// best-effort nicety and must never fail a run.
+func Dirty(dir, branch string, limit int) []string {
+	path, exists, err := Path(dir, branch)
+	if err != nil || !exists {
+		return nil
+	}
+	// -z: NUL-separated and never quoted. Plain --porcelain quotes paths
+	// containing spaces or non-ASCII, which would surface to the user as
+	// `"weird name.txt"`.
+	out, err := runGit(path, "status", "--porcelain", "-z")
+	if err != nil {
+		return nil
+	}
+	var files []string
+	fields := strings.Split(strings.TrimRight(out, "\x00"), "\x00")
+	for i := 0; i < len(fields); i++ {
+		entry := fields[i]
+		if len(entry) < 4 {
+			continue
+		}
+		status, name := entry[:2], entry[3:]
+		// Renames and copies emit the destination in this entry and the source
+		// as the next NUL-separated field; report the destination and skip it.
+		if status[0] == 'R' || status[0] == 'C' {
+			i++
+		}
+		files = append(files, name)
+		if limit > 0 && len(files) >= limit {
+			break
+		}
+	}
+	return files
+}
+
+// ErrGitFailed wraps a non-zero exit from the git subprocess. git has already
+// written its own diagnostics to stderr, so callers should set an exit code
+// rather than print the error again. Errors that are *not* this (an unknown
+// branch, a missing repo) still need reporting.
+type ErrGitFailed struct{ Err error }
+
+func (e *ErrGitFailed) Error() string { return e.Err.Error() }
+func (e *ErrGitFailed) Unwrap() error { return e.Err }
+
+// Git runs git inside the worktree for branch, streaming output to the caller's
+// stdout/stderr, so the worktree can be operated on by branch name instead of
+// requiring the user to cd into the sandbox-owned directory. A non-zero git exit
+// is returned as *ErrGitFailed.
+func Git(dir, branch string, args ...string) error {
+	path, exists, err := Path(dir, branch)
+	if err != nil {
+		return err
+	}
+	if !exists {
+		return fmt.Errorf("no worktree for branch %q", branch)
+	}
+	cmd := exec.Command(gitBin, args...)
+	cmd.Dir = path
+	// Passthrough: the user's own git command, so inherit the environment as-is
+	// (locale, credential helpers, signing) rather than pinning it like runGit.
+	cmd.Stdin = os.Stdin
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+	if err := cmd.Run(); err != nil {
+		return &ErrGitFailed{Err: err}
+	}
+	return nil
+}
+
+// GitCommonDir reports the repository's main .git directory when dir is a git
+// worktree — i.e. when its ".git" is a pointer *file* rather than a directory.
+//
+// This matters for the sandbox: a worktree's .git file holds an absolute host
+// path into the parent repo (".git/worktrees/<name>"), and that path is outside
+// the workspace, so inside the container git would resolve the pointer, find
+// nothing, and fail with "not a git repository". Mounting the returned directory
+// at the same absolute path makes git work normally in the sandbox.
+//
+// ok is false for a normal repository (.git is a directory) or a non-repository,
+// where nothing extra needs mounting.
+func GitCommonDir(dir string) (path string, ok bool) {
+	dotGit := filepath.Join(dir, ".git")
+	fi, err := os.Lstat(dotGit)
+	if err != nil || fi.IsDir() {
+		return "", false // normal repo, or not a repo at all
+	}
+	b, err := os.ReadFile(dotGit)
+	if err != nil {
+		return "", false
+	}
+	gitDir := strings.TrimSpace(strings.TrimPrefix(strings.TrimSpace(string(b)), "gitdir:"))
+	if gitDir == "" {
+		return "", false
+	}
+	if !filepath.IsAbs(gitDir) {
+		gitDir = filepath.Join(dir, gitDir)
+	}
+	// <main>/.git/worktrees/<name>/commondir points back at <main>/.git.
+	if b, err := os.ReadFile(filepath.Join(gitDir, "commondir")); err == nil {
+		common := strings.TrimSpace(string(b))
+		if common != "" {
+			if !filepath.IsAbs(common) {
+				common = filepath.Join(gitDir, common)
+			}
+			if isDir(common) {
+				return filepath.Clean(common), true
+			}
+		}
+	}
+	// Fall back to the conventional layout: .git/worktrees/<name> -> .git
+	if parent := filepath.Dir(filepath.Dir(gitDir)); isDir(parent) {
+		return filepath.Clean(parent), true
+	}
+	return "", false
 }
 
 func branchExists(root, branch string) bool {
@@ -176,9 +325,18 @@ func resolveSymlinks(p string) string {
 	return filepath.Clean(p)
 }
 
+// gitEnv pins the environment for git subprocesses whose output we parse:
+// LC_ALL=C keeps messages in English (we match on some of them, and a translated
+// locale would silently break that), and GIT_TERMINAL_PROMPT=0 makes git fail
+// instead of blocking forever on a credential prompt with no terminal attached.
+func gitEnv() []string {
+	return append(os.Environ(), "LC_ALL=C", "GIT_TERMINAL_PROMPT=0")
+}
+
 func runGit(dir string, args ...string) (string, error) {
 	cmd := exec.Command(gitBin, args...)
 	cmd.Dir = dir
+	cmd.Env = gitEnv()
 	var out, errb strings.Builder
 	cmd.Stdout = &out
 	cmd.Stderr = &errb
