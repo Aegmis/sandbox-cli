@@ -9,6 +9,9 @@ a prompt-injected command can't touch the rest of your machine.
         Host                                Sandbox (container, --rm)
   ~/projects/myapp  ── bind ──►  /workspace   (the only host-connected path)
   ~/.ssh ~/.aws ~/  ── NOT mounted            HOME=/sandbox/home  (ephemeral)
+
+  (the claude/codex wrappers additionally mount a sandbox-owned agent home and,
+   for claude, your history for this one project — both opt-out; see below)
 ```
 
 > New here? Start with the **[User Guide](docs/GUIDE.md)** — setup, everyday
@@ -114,9 +117,11 @@ The whole home is persisted (not just `~/.claude`) because agents keep their
 "onboarding done" flag and account info in `~/.claude.json` — a file in the home
 root — and write config via atomic rename, which a single-file bind mount can't
 capture. This directory is **separate from your host `~/.claude`** — the sandbox
-never reads or writes your real Claude/Codex config. The first `sandbox-cli claude`
-prompts you to log in; subsequent runs reuse the stored session. Opt out for a
-one-off, throwaway session with `--no-persist-auth`:
+does not read or write your real Claude/Codex *config* or credentials. (Your host
+*conversation history* for the project is shared by default; see
+[Shared conversation history](#shared-conversation-history).) The first
+`sandbox-cli claude` prompts you to log in; subsequent runs reuse the stored
+session. Opt out for a one-off, throwaway session with `--no-persist-auth`:
 
 ```sh
 sandbox-cli claude --no-persist-auth
@@ -129,6 +134,33 @@ Claude Code and Codex pre-installed). Rebuild with `--build`.
 `sandbox-cli claude` installs Claude Code into the persisted HOME (`~/.local`, via
 the official installer) where it is writable, so it self-updates from then on and
 matches the version you'd get on the host — no rebuild needed.
+
+### Shared conversation history
+
+`sandbox-cli claude` mounts **your host Claude history for the current project**
+into the sandbox by default, so a session works the same on either side of the
+boundary:
+
+```
+~/.claude/projects/<project>  ->  /sandbox/home/.claude/projects/-workspace   (read-write)
+```
+
+That means `claude --resume` inside the sandbox lists and resumes sessions you
+started on the host, and sessions you run in the sandbox show up on the host
+afterwards. Only the directory for the project you're running in is mounted — not
+your whole `~/.claude/projects`.
+
+The mount is **read-write**, so an agent in the sandbox can modify or delete the
+host-side transcripts for that one project. If you'd rather keep the sandbox's
+history completely separate, opt out:
+
+```sh
+sandbox-cli claude --no-sync
+```
+
+If the host has no history for the project yet, there's nothing to mount and the
+flag is a no-op. History sharing assumes the default `HOME` and workdir; with
+`--workdir` overridden, session IDs may not line up.
 
 ### Live resource gauge
 
@@ -333,10 +365,14 @@ secrets:              # broker: resolve at run time, forward by name (never on t
   OPENAI_API_KEY: { env: OPENAI_API_KEY }     # from host env, but kept off the command line
 ```
 
-## Security model (MVP)
+## Security model
 
-- **Only `/workspace` is host-connected and writable.** `HOME`, `/etc`, `/` inside
-  the container are ephemeral and destroyed on exit (`--rm`).
+- **Only `/workspace` is host-connected and writable** for `sandbox-cli run`.
+  `HOME`, `/etc`, `/` inside the container are ephemeral and destroyed on exit
+  (`--rm`). The `claude` / `codex` wrappers add two more host paths by default,
+  both scoped and both opt-out: the sandbox-owned agent home
+  (`~/.config/sandbox/agents/<agent>`, `--no-persist-auth`) and your Claude
+  history for the current project (`--no-sync`). Anything else needs `--mount`.
 - **The host home is never mounted.** sandbox refuses to mount `/`, your home
   directory, or any ancestor of it as the workspace.
 - **Default-deny credentials.** Nothing from your host env crosses the boundary
@@ -370,7 +406,7 @@ secrets:              # broker: resolve at run time, forward by name (never on t
   errors. Requires a Linux-capable Docker host (iptables); resolves domains to IPs
   once at startup, so extremely dynamic CDNs may need extra `allow` entries.
 
-Out of scope for this milestone (clean seams exist in the code): a
+Deliberately out of scope, with clean seams left in the code for them: a
 header-injecting secrets proxy (so the agent never sees the raw value),
 per-request egress policies, snapshots, risk scoring, and audit trails.
 

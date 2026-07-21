@@ -50,7 +50,7 @@ cmd/sandbox-cli  →  internal/cli  →  config.Load + sandbox.BuildSpec  →  r
   on first use via the `Runtime`'s builder hook.
 - **`internal/metrics`** — the sticky-footer live resource gauge for non-interactive runs only.
 - **`internal/creds`, `internal/audit`** — deliberate **stub seams** for a future credential broker
-  and audit trail. The MVP forwards nothing extra and audits to a no-op sink; keep these seams clean.
+  and audit trail. Today nothing extra is forwarded and audit goes to a no-op sink; keep these seams clean.
 
 ### Two invariants to preserve when changing behavior
 
@@ -72,6 +72,11 @@ cmd/sandbox-cli  →  internal/cli  →  config.Load + sandbox.BuildSpec  →  r
 if set) and **persist the agent login by default** by bind-mounting a sandbox-owned host dir
 (`~/.config/sandbox/agents/<name>`) at the agent's config dir inside the ephemeral HOME. This is
 separate from the host's real `~/.claude`. `--no-persist-auth` opts out.
+
+`claude` additionally read-write mounts the host's Claude history for the current project
+(`~/.claude/projects/<bucket>`) into the persisted HOME by default, so host sessions resolve
+inside the sandbox and vice versa. `--no-sync` opts out. This is the one default that reaches a
+host path outside the workspace — keep it scoped to the single project bucket.
 
 ## Conventions
 
