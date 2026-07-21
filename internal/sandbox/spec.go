@@ -246,7 +246,10 @@ func BuildSpec(cfg config.Config, opts Options) (runtime.RunSpec, error) {
 		}
 		env["SANDBOX_EGRESS_ALLOW"] = strings.Join(egress, ",")
 		env["SANDBOX_RUN_AS"] = runAs
-		capAdd = append(capAdd, "NET_ADMIN", "NET_RAW")
+		// NET_ADMIN/NET_RAW to program iptables; SETUID/SETGID so the entrypoint's
+		// `setpriv` can drop root -> the intended user before the agent runs
+		// (cap-drop ALL from hardening would otherwise block setresuid/setresgid).
+		capAdd = append(capAdd, "NET_ADMIN", "NET_RAW", "SETUID", "SETGID")
 		dockerUser = "root"
 		entrypoint = "/usr/local/bin/sandbox-firewall"
 		network = "" // allowlist requires bridge networking, not "none"
