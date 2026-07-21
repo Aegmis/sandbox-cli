@@ -9,7 +9,7 @@ import (
 	"os/exec"
 	"path/filepath"
 
-	"github.com/amitghadge/sandbox-cli/internal/runtime"
+	"github.com/aegmis/sandbox-cli/internal/runtime"
 )
 
 //go:embed assets/Dockerfile

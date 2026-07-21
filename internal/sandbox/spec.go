@@ -8,9 +8,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/amitghadge/sandbox-cli/internal/config"
-	"github.com/amitghadge/sandbox-cli/internal/creds"
-	"github.com/amitghadge/sandbox-cli/internal/runtime"
+	"github.com/aegmis/sandbox-cli/internal/config"
+	"github.com/aegmis/sandbox-cli/internal/creds"
+	"github.com/aegmis/sandbox-cli/internal/runtime"
 )
 
 // gitIdentityEnvNames are forwarded (by name) into the container when --git is

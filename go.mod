@@ -1,4 +1,4 @@
-module github.com/amitghadge/sandbox-cli
+module github.com/aegmis/sandbox-cli
 
 go 1.25.2
 
