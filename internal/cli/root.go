@@ -50,9 +50,10 @@ type runFlags struct {
 	// noStatusline disables the sandbox mem/cpu status line for the claude wrapper.
 	noStatusline bool
 
-	// shareHistory (claude wrapper) read-write mounts the host's Claude project
-	// history for this repo into the sandbox, so host sessions can be --resume'd.
-	shareHistory bool
+	// noSync (claude wrapper) opts out of read-write mounting the host's Claude
+	// project history for this repo into the sandbox. Sharing it is the default,
+	// so host sessions can be --resume'd from inside the container.
+	noSync bool
 }
 
 // newSession loads config (with the flag override for the config path) and
