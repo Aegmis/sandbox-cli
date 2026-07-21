@@ -223,6 +223,25 @@ func Git(dir, branch string, args ...string) error {
 	return nil
 }
 
+// Branch reports the branch checked out in the repository containing dir, or ""
+// when dir is not a git repository (git isn't required to use the sandbox). A
+// detached HEAD has no branch name, so the short commit id stands in.
+func Branch(dir string) string {
+	out, err := runGit(dir, "rev-parse", "--abbrev-ref", "HEAD")
+	if err != nil {
+		return ""
+	}
+	branch := strings.TrimSpace(out)
+	if branch == "HEAD" { // detached
+		sha, err := runGit(dir, "rev-parse", "--short", "HEAD")
+		if err != nil {
+			return ""
+		}
+		return strings.TrimSpace(sha)
+	}
+	return branch
+}
+
 // GitCommonDir reports the repository's main .git directory when dir is a git
 // worktree — i.e. when its ".git" is a pointer *file* rather than a directory.
 //

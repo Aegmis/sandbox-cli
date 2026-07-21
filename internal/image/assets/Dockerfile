@@ -30,9 +30,40 @@ RUN npm install -g @anthropic-ai/claude-code @openai/codex || true
 # memory/CPU and prints one line. Claude runs it via a managed-settings.json that
 # sandbox-cli mounts at /etc/claude-code/managed-settings.json at run time.
 RUN cat > /usr/local/bin/sandbox-statusline <<'SL'
-#!/bin/sh
-# Claude pipes the session JSON on stdin; consume it so the pipe closes cleanly.
-cat >/dev/null 2>&1 || true
+#!/bin/bash
+# LC_ALL=C so ${#var} counts *bytes*. The line mixes ASCII with multibyte glyphs
+# (⬢ · ⎇) whose rendered width is terminal-dependent — "ambiguous width" in
+# Unicode, so 1 column in some terminals and 2 in others. A UTF-8 character count
+# would therefore under-estimate the width and let the line overflow, which is
+# what truncates the right-hand branch. The byte count is an upper bound on the
+# real width (an ASCII char is 1 byte / 1 column; a non-ASCII one is >=2 bytes but
+# never more than 2 columns), so padding against it can never overflow.
+export LC_ALL=C
+
+# Claude pipes the session JSON on stdin; read it (rather than discarding it) so
+# the pipe closes cleanly *and* we can pick the branch out of it below.
+session=$(cat 2>/dev/null || true)
+
+# termcols reports the width to align against. Claude's session JSON carries no
+# terminal geometry, so this is the controlling terminal's width (our own stdin
+# is Claude's JSON pipe). SANDBOX_STATUSLINE_COLS overrides it for the case where
+# Claude renders the status line into an area narrower than the terminal.
+termcols() {
+  c=${SANDBOX_STATUSLINE_COLS:-}
+  [ -n "$c" ] || c=$({ stty size < /dev/tty; } 2>/dev/null | awk '{print $2}')
+  [ -n "$c" ] || c=$(tput cols 2>/dev/null)
+  [ -n "$c" ] || c=${COLUMNS:-0}
+  printf '%s' "${c:-0}"
+}
+
+# Diagnostic: print a column ruler instead of the gauge, so the width Claude
+# actually renders into can be *read off* the screen rather than guessed at.
+# Run `sandbox-cli claude --env SANDBOX_STATUSLINE_RULER=1` and note the last
+# number still visible — that is the usable width.
+if [ -n "${SANDBOX_STATUSLINE_RULER:-}" ]; then
+  awk -v n="$(termcols)" 'BEGIN{for(i=1;i<=n;i++)printf (i%10==0)?substr(i/10,length(i/10),1):((i%5==0)?"+":".");print ""}'
+  exit 0
+fi
 
 cg=/sys/fs/cgroup
 # Current working-set memory, computed the same way `docker stats` does:
@@ -61,8 +92,46 @@ printf '%s %s\n' "$usage" "$now" > "$state" 2>/dev/null || true
 
 hum() { awk -v b="${1:-0}" 'BEGIN{split("B KiB MiB GiB TiB",u," ");i=1;while(b>=1024&&i<5){b/=1024;i++}printf (i==1?"%.0f%s":"%.1f%s"),b,u[i]}'; }
 
+# Checked-out branch. Claude's own session JSON reports it when it knows about a
+# worktree, so prefer that.
+branch=$(printf '%s' "$session" | jq -r '.worktree.branch // empty' 2>/dev/null)
+
+# Otherwise read it straight from .git — cheaper than running git every few
+# seconds, and /workspace may be a git worktree whose .git is a pointer file into
+# the (bind-mounted) parent repo.
+if [ -z "$branch" ]; then
+  gd=/workspace/.git
+  [ -f "$gd" ] && gd=$(sed -n 's/^gitdir: *//p' "$gd" 2>/dev/null)
+  if [ -n "$gd" ] && [ -r "$gd/HEAD" ]; then
+    head=$(cat "$gd/HEAD" 2>/dev/null)
+    case "$head" in
+      "ref: refs/heads/"*) branch=${head#ref: refs/heads/} ;;   # on a branch
+      ?*) branch=$(printf '%.7s' "$head") ;;                    # detached: commit id
+    esac
+  fi
+fi
+
 line="⬢ sandbox · mem $(hum "$used")"
 if [ -n "$cpu" ]; then line="$line · cpu ${cpu}%"; fi
+
+# Push the branch to the right edge. Our stdin is Claude's JSON pipe, so the
+# width comes from the controlling terminal instead. SANDBOX_STATUSLINE_COLS
+# overrides it, for when Claude renders the status line in an area narrower than
+# the terminal (pass it with --env).
+if [ -n "$branch" ]; then
+  right="⎇ $branch"
+  cols=$(termcols)
+  # reserve: leave a few columns free at the right edge. Writing into the last
+  # column wraps on most terminals, and Claude's own frame may end before the
+  # terminal does.
+  gap=$(( cols - ${SANDBOX_STATUSLINE_RESERVE:-4} - ${#line} - ${#right} ))
+  # Unknown width, or too narrow for both halves: drop the branch entirely. A
+  # half-shown name is worse than none — appending it inline would overflow the
+  # row and leave it truncated (or wrapped) mid-name.
+  if [ "$gap" -ge 1 ] 2>/dev/null; then
+    line="$line$(printf "%${gap}s" "")$right"
+  fi
+fi
 printf '\033[2m%s\033[0m\n' "$line"
 SL
 RUN chmod +x /usr/local/bin/sandbox-statusline

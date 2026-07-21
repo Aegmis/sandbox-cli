@@ -71,6 +71,10 @@ type RunSpec struct {
 	// Works for interactive runs too (sampled without drawing during the session).
 	// Requires Name to be set.
 	ShowSummary bool
+	// Branch is the workspace's git branch, shown at the right edge of the gauge
+	// and in the summary. Display only: BuildArgs ignores it, so it can never
+	// affect what the container can reach.
+	Branch string
 }
 
 // Runtime is a container execution backend.

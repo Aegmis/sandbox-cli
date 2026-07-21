@@ -70,6 +70,7 @@ go vet ./...              # must be clean
 | wrapper arg splitting (claude/codex flag passthrough) | `TestSplitWrapperArgs`, `TestClaudeWrapperParsesWithoutError` | `internal/cli` |
 | `--dry-run` golden (asserts `--rm`, fake HOME, no host-home mount) | `TestDryRunInvariants` | `internal/cli` |
 | metrics parsing / bar / duration / humanBytes / footer / summary | `TestParseBytes`, `TestParseMemUsage`, `TestBar`, `TestFormatDuration`, `TestHumanBytes`, `TestFooterForwardsOutputIntact`, `TestMeterSummary` | `internal/metrics` |
+| branch label: right-aligned, dropped when too narrow, never wraps | `TestLayout`, `TestMeterFormatBranch`, `TestBranch` | `internal/metrics`, `internal/worktree` |
 | **[integration]** isolation smoke (HOME=/sandbox/home, /workspace writes reach host) | `TestIsolation_HomeAndWorkspace` | `internal/cli` |
 | **[integration]** `rm -rf ~` cannot touch host | `TestRmRfHomeSafety` | `internal/cli` |
 | **[integration]** env allowlist forwards / non-allowlisted absent | `TestEnvPassthrough` | `internal/cli` |
@@ -286,6 +287,7 @@ if installed via `make install`).
 1. In a real terminal: `./bin/sandbox-cli run --no-tty -- sh -c 'for i in 1 2 3 4 5 6; do echo line $i; sleep 1; done'`
 - Expected: a dim status line pinned at the bottom — `⬢ sandbox … / sandbox-cli │ mem …  cpu …  Ns` — output scrolls above it; it disappears at exit.
 - Note: not shown if stderr isn't a terminal (piped).
+- In a git repo, the branch (`⎇ <branch>`) sits at the right edge; narrow the window until it no longer fits and the label drops rather than wrapping to a second line.
 
 **TC-81 [A] Live gauge is off for interactive TTY**
 1. `./bin/sandbox-cli run -- bash` (interactive)

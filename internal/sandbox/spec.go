@@ -42,6 +42,7 @@ type Options struct {
 	AddHosts    []string // --add-host HOST:IP (repeatable)
 	HostGateway bool     // --host-gateway: add host.docker.internal -> host gateway (reach host MCP servers)
 	GitIdentity bool     // --git: forward host git user.name/email and trust the workspace
+	Branch      string   // workspace's git branch, for display in the gauge/summary only
 	Command     []string // guest argv
 
 	// AuthPersistDir, when non-empty, is a host directory bind-mounted read-write
@@ -305,6 +306,7 @@ func BuildSpec(cfg config.Config, opts Options) (runtime.RunSpec, error) {
 
 		ShowMetrics: showMetrics,
 		ShowSummary: showSummary,
+		Branch:      opts.Branch,
 	}, nil
 }
 
