@@ -601,9 +601,7 @@ reach for microVM tooling.
 | Best for | Local multi-agent workflows, ergonomics | Quick minimal protection | Strongest local isolation | Lightweight, zero deps | Scale & long-running tasks |
 
 This is our own read of the landscape, and the ratings for other projects are a
-snapshot that will age — check their docs before choosing. The row that matters
-most is the first one: if you need a hard security boundary rather than good
-ergonomics, a microVM is the right answer, not this tool.
+snapshot that will age — check their docs before choosing.
 
 ## Development
 
