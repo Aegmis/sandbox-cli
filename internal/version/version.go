@@ -10,4 +10,4 @@ var Version = "0.0.1beta.1"
 // hash of the embedded Dockerfile, so any change to the image content produces
 // a new tag and rebuilds automatically. Bump this only to mark a new image
 // generation for readability — correctness does not depend on it.
-const BaseImageVersion = "0.1.1"
+const BaseImageVersion = "0.1.2"

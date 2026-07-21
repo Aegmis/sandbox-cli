@@ -303,7 +303,7 @@ CLI flags. Run `sandbox-cli config show` to see the effective config.
 
 ```yaml
 # .sandbox.yaml
-image: sandbox-base:0.1.1-9f95ae16   # default; tag is content-addressed
+image: sandbox-base:0.1.2-9f95ae16   # default; tag is content-addressed
 workdir: /workspace
 user: sandbox           # non-root; agents refuse --dangerously-skip-permissions as root
 # runtime: kata-runtime # stronger isolation (microVM); or runsc for gVisor. default: runc
