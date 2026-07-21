@@ -80,8 +80,14 @@ func injectGitIdentity(opts Options) {
 	if !opts.GitIdentity {
 		return
 	}
-	name := gitConfigGet("user.name")
-	email := gitConfigGet("user.email")
+	// Read the identity git would use in the project itself (its local config
+	// wins over global), not sandbox-cli's ambient cwd.
+	dir := opts.Project
+	if dir == "" {
+		dir, _ = os.Getwd()
+	}
+	name := gitConfigGet(dir, "user.name")
+	email := gitConfigGet(dir, "user.email")
 	if name != "" {
 		os.Setenv("GIT_AUTHOR_NAME", name)
 		os.Setenv("GIT_COMMITTER_NAME", name)
@@ -92,8 +98,10 @@ func injectGitIdentity(opts Options) {
 	}
 }
 
-func gitConfigGet(key string) string {
-	out, err := exec.Command("git", "config", "--get", key).Output()
+func gitConfigGet(dir, key string) string {
+	cmd := exec.Command("git", "config", "--get", key)
+	cmd.Dir = dir
+	out, err := cmd.Output()
 	if err != nil {
 		return ""
 	}
