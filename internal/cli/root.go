@@ -130,6 +130,11 @@ func newSession(rf *runFlags) (*sandbox.Session, sandbox.Options, error) {
 		opts.ExtraMounts = append(opts.ExtraMounts, gitDir+":"+gitDir+":rw")
 	}
 
+	// Display only: the live gauge and the post-run summary show which branch the
+	// sandbox is on. It matters most with --worktree, where several containers are
+	// running different branches of the same repo at once.
+	opts.Branch = worktree.Branch(config.ExpandTilde(projectDir))
+
 	// Persist agent login in a dedicated, sandbox-owned host dir mounted as the
 	// agent's whole HOME, so login survives the ephemeral container.
 	if rf.persistName != "" && !rf.noPersistAuth {

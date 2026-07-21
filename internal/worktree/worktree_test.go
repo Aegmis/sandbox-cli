@@ -119,6 +119,40 @@ func TestResolve_NotAGitRepo(t *testing.T) {
 	}
 }
 
+// Branch backs the branch label on the metrics gauge: a name for a normal
+// checkout, a commit id when HEAD is detached, and nothing at all outside a repo
+// (the sandbox does not require git).
+func TestBranch(t *testing.T) {
+	git, err := exec.LookPath("git")
+	if err != nil {
+		t.Skip("git not available")
+	}
+	repo := t.TempDir()
+	runOrSkip(t, git, repo, "init", "-q", "-b", "main")
+	runOrSkip(t, git, repo, "config", "user.email", "t@example.com")
+	runOrSkip(t, git, repo, "config", "user.name", "t")
+	if err := os.WriteFile(filepath.Join(repo, "README"), []byte("hi\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	runOrSkip(t, git, repo, "add", ".")
+	runOrSkip(t, git, repo, "commit", "-qm", "init")
+
+	if got := Branch(repo); got != "main" {
+		t.Errorf("Branch = %q, want %q", got, "main")
+	}
+
+	// Detached HEAD: the short commit id stands in for the missing branch name.
+	runOrSkip(t, git, repo, "checkout", "-q", "--detach")
+	got := Branch(repo)
+	if got == "" || got == "HEAD" {
+		t.Errorf("detached Branch = %q, want a short commit id", got)
+	}
+
+	if got := Branch(t.TempDir()); got != "" {
+		t.Errorf("Branch outside a repo = %q, want \"\"", got)
+	}
+}
+
 func runOrSkip(t *testing.T, git, dir string, args ...string) {
 	t.Helper()
 	cmd := exec.Command(git, args...)

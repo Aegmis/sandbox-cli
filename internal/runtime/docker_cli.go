@@ -174,7 +174,7 @@ func (d *DockerCLI) runWithLiveGauge(cmd *exec.Cmd, spec RunSpec) (int, error) {
 	go pump(&pumps, outR, os.Stdout, footer)
 	go pump(&pumps, errR, os.Stderr, footer)
 
-	meter := metrics.NewMeter(d.bin(), spec.Name, footer)
+	meter := metrics.NewMeter(d.bin(), spec.Name, spec.Branch, footer)
 	meter.Start()
 
 	runErr := cmd.Run()
@@ -195,7 +195,7 @@ func (d *DockerCLI) runWithSummary(cmd *exec.Cmd, spec RunSpec) (int, error) {
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 
-	meter := metrics.NewMeter(d.bin(), spec.Name, nil) // nil footer => silent
+	meter := metrics.NewMeter(d.bin(), spec.Name, spec.Branch, nil) // nil footer => silent
 	meter.Start()
 	runErr := cmd.Run()
 	meter.Stop()

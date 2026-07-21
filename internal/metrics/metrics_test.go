@@ -7,6 +7,7 @@ import (
 	"strings"
 	"testing"
 	"time"
+	"unicode/utf8"
 )
 
 func TestParseBytes(t *testing.T) {
@@ -100,6 +101,45 @@ func TestFooterForwardsOutputIntact(t *testing.T) {
 	// Status text was drawn at least once.
 	if !strings.Contains(out, "STATUS") {
 		t.Errorf("status not drawn: %q", out)
+	}
+}
+
+// layout must right-align the branch without ever wrapping the footer: it is
+// erased with a single-line escape, so a second line would be left behind.
+func TestLayout(t *testing.T) {
+	left, right := " left ", "⎇ main "
+	got := layout(left, right, 40)
+	if utf8.RuneCountInString(got) != 39 { // one short of the right edge
+		t.Errorf("width = %d, want 39: %q", utf8.RuneCountInString(got), got)
+	}
+	if !strings.HasPrefix(got, left) || !strings.HasSuffix(got, right) {
+		t.Errorf("segments not at the edges: %q", got)
+	}
+
+	// Too narrow for both -> the branch is dropped, never wrapped.
+	if got := layout(left, right, 10); got != left {
+		t.Errorf("narrow layout = %q, want %q", got, left)
+	}
+	// Unknown width (not a terminal) -> no right edge to align to.
+	if got := layout(left, right, 0); got != left+"· "+right {
+		t.Errorf("unknown-width layout = %q", got)
+	}
+	// No branch -> unchanged, whatever the width.
+	if got := layout(left, "", 40); got != left {
+		t.Errorf("empty right = %q, want %q", got, left)
+	}
+}
+
+// The gauge falls back to a bare line when there is no branch, and shows one
+// when there is.
+func TestMeterFormatBranch(t *testing.T) {
+	m := &Meter{start: time.Now(), branch: "feature/x"}
+	if got := m.format(); !strings.Contains(got, "⎇ feature/x") {
+		t.Errorf("branch missing from gauge: %q", got)
+	}
+	m.branch = ""
+	if got := m.format(); strings.Contains(got, "⎇") {
+		t.Errorf("unexpected branch label: %q", got)
 	}
 }
 

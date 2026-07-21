@@ -1,7 +1,7 @@
 // Package metrics renders a live, one-line resource gauge (memory, CPU, elapsed
-// time) for a running sandbox container. It is used only for non-interactive
-// runs — during an interactive agent TUI the container owns the terminal, so no
-// bar is drawn.
+// time, and the workspace's git branch) for a running sandbox container. It is
+// used only for non-interactive runs — during an interactive agent TUI the
+// container owns the terminal, so no bar is drawn.
 //
 // The gauge is a "sticky footer": forwarded container output scrolls above while
 // the status line stays pinned to the bottom, redrawn on each output write and
@@ -18,6 +18,7 @@ import (
 	"strings"
 	"sync"
 	"time"
+	"unicode/utf8"
 )
 
 // TermFooter keeps a status line pinned to the bottom of a terminal while other
@@ -27,10 +28,63 @@ type TermFooter struct {
 	mu     sync.Mutex
 	status string
 	shown  bool
+
+	// Width is measured out of band (it shells out to stty), so it gets its own
+	// lock: measuring must never block an output write behind mu.
+	widthMu sync.Mutex
+	width   int
+	widthAt time.Time // zero => never measured
 }
 
 // NewTermFooter returns a footer that draws on term.
 func NewTermFooter(term *os.File) *TermFooter { return &TermFooter{term: term} }
+
+// widthTTL is how long a measured terminal width is reused. Short enough that a
+// resize is picked up promptly, long enough that the ~4Hz repaint doesn't run
+// stty on every frame.
+const widthTTL = 2 * time.Second
+
+// Width reports the terminal's column count, or 0 when it can't be determined
+// (not a terminal, or stty unavailable) — callers then lay out without knowing
+// where the right edge is.
+func (f *TermFooter) Width() int {
+	f.widthMu.Lock()
+	defer f.widthMu.Unlock()
+	if !f.widthAt.IsZero() && time.Since(f.widthAt) < widthTTL {
+		return f.width
+	}
+	f.width = terminalWidth(f.term)
+	f.widthAt = time.Now()
+	return f.width
+}
+
+// terminalWidth asks the terminal for its size. COLUMNS wins when it is set
+// (the user's own override); otherwise `stty size` reads it from the tty. Both
+// avoid a raw ioctl, which would need per-OS syscall constants for the one
+// number we want.
+func terminalWidth(term *os.File) int {
+	if n, err := strconv.Atoi(strings.TrimSpace(os.Getenv("COLUMNS"))); err == nil && n > 0 {
+		return n
+	}
+	if term == nil {
+		return 0
+	}
+	cmd := exec.Command("stty", "size")
+	cmd.Stdin = term // stty reports the size of *its* stdin
+	out, err := cmd.Output()
+	if err != nil {
+		return 0
+	}
+	fields := strings.Fields(string(out))
+	if len(fields) != 2 {
+		return 0
+	}
+	n, err := strconv.Atoi(fields[1])
+	if err != nil || n <= 0 {
+		return 0
+	}
+	return n
+}
 
 // eraseLocked clears the current footer line (caller holds mu).
 func (f *TermFooter) eraseLocked() {
@@ -92,6 +146,7 @@ type reading struct {
 type Meter struct {
 	dockerBin string
 	name      string
+	branch    string // git branch of the workspace; "" => not a repo / unknown
 	start     time.Time
 	footer    *TermFooter // nil => silent (no live gauge)
 
@@ -107,12 +162,15 @@ type Meter struct {
 	wg          sync.WaitGroup
 }
 
-// NewMeter builds a Meter for the named container.
-func NewMeter(dockerBin, name string, footer *TermFooter) *Meter {
+// NewMeter builds a Meter for the named container. branch is the workspace's
+// git branch (may be empty); it is display-only, shown at the right edge of the
+// gauge so parallel per-branch sandboxes are told apart at a glance.
+func NewMeter(dockerBin, name, branch string, footer *TermFooter) *Meter {
 	ctx, cancel := context.WithCancel(context.Background())
 	return &Meter{
 		dockerBin: dockerBin,
 		name:      name,
+		branch:    branch,
 		start:     time.Now(),
 		footer:    footer,
 		stop:      make(chan struct{}),
@@ -181,8 +239,14 @@ func (m *Meter) Summary() string {
 	if mem == "" {
 		mem = humanBytes(m.peakBytes)
 	}
-	return fmt.Sprintf("sandbox-cli: peak mem %s · cpu peak %.0f%% · %s",
+	s := fmt.Sprintf("sandbox-cli: peak mem %s · cpu peak %.0f%% · %s",
 		mem, m.peakCPU, formatDuration(time.Since(m.start)))
+	if m.branch != "" {
+		// Interactive runs never draw the gauge, so this is the only place the
+		// branch surfaces for them.
+		s += " · " + branchLabel(m.branch)
+	}
+	return s
 }
 
 // renderLoop keeps the elapsed clock ticking smoothly between samples.
@@ -227,18 +291,54 @@ func (m *Meter) sample() reading {
 	}
 }
 
-// format builds the status line from the latest reading and elapsed time.
+// format builds the status line from the latest reading and elapsed time, with
+// the git branch pushed to the right edge.
 func (m *Meter) format() string {
 	m.mu.Lock()
 	r := m.cur
 	m.mu.Unlock()
 
 	elapsed := formatDuration(time.Since(m.start))
-	if !r.ok {
-		return fmt.Sprintf("\033[2m sandbox-cli │ starting… · %s \033[0m", elapsed)
+	left := fmt.Sprintf(" sandbox-cli │ starting… · %s ", elapsed)
+	if r.ok {
+		left = fmt.Sprintf(" sandbox-cli │ mem %s %s cpu %s · %s ",
+			r.memText, bar(r.memFrac, 8), r.cpu, elapsed)
 	}
-	return fmt.Sprintf("\033[2m sandbox-cli │ mem %s %s cpu %s · %s \033[0m",
-		r.memText, bar(r.memFrac, 8), r.cpu, elapsed)
+	var right string
+	if m.branch != "" {
+		right = branchLabel(m.branch) + " "
+	}
+	width := 0
+	if m.footer != nil {
+		width = m.footer.Width()
+	}
+	return "\033[2m" + layout(left, right, width) + "\033[0m"
+}
+
+// branchLabel renders a branch name for display.
+func branchLabel(branch string) string { return "⎇ " + branch }
+
+// layout joins the gauge's left and right segments, padding so the right
+// segment ends at the terminal's right edge.
+//
+// The footer is erased with a single-line "\r\033[K", so it must never wrap:
+// the line stops one column short of the right edge (writing the last column
+// triggers auto-wrap on most terminals), and when there is no room for both
+// segments the right one is dropped rather than pushed onto a second line. With
+// an unknown width (width <= 0, e.g. output is not a terminal) there is no right
+// edge to align to, so the segments are simply joined.
+func layout(left, right string, width int) string {
+	if right == "" {
+		return left
+	}
+	if width <= 0 {
+		return left + "· " + right
+	}
+	gap := width - 1 - utf8.RuneCountInString(left) - utf8.RuneCountInString(right)
+	if gap < 1 {
+		return left
+	}
+	return left + strings.Repeat(" ", gap) + right
 }
 
 // bar renders a fixed-width unicode meter for a 0..1 fraction.

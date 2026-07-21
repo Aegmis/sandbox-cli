@@ -213,20 +213,24 @@ flag is a no-op. History sharing assumes the default `HOME` and workdir; with
 
 For **non-interactive** runs (`--no-tty`, or piped/redirected stdio), sandbox-cli
 pins a live resource gauge to the bottom of the terminal showing the container's
-memory, CPU, and elapsed time — output scrolls above it, and it's erased when the
-run ends:
+memory, CPU, and elapsed time, with the workspace's git branch on the right —
+output scrolls above it, and it's erased when the run ends:
 
 ```
 work line 3
- sandbox-cli │ mem 512MiB/7.6GiB ▕▓░░░░░░▏ cpu 82% · 0m47s
+ sandbox-cli │ mem 512MiB/7.6GiB ▕▓░░░░░░▏ cpu 82% · 0m47s        ⎇ feature/login
 ```
+
+The branch is what tells parallel `--worktree` sandboxes apart at a glance. It is
+dropped when the terminal is too narrow to fit both halves on one line, and absent
+when the project isn't a git repository (a detached HEAD shows the commit id).
 
 It is intentionally **not** drawn during an interactive agent session (Claude/Codex
 own the full screen). Instead, **every** run (interactive included) prints a one-line
 peak-usage summary after it exits — so you still get the numbers for a Claude session:
 
 ```
-sandbox-cli: peak mem 412MiB · cpu peak 138% · 12m04s
+sandbox-cli: peak mem 412MiB · cpu peak 138% · 12m04s · ⎇ feature/login
 ```
 
 The summary is sampled in the background without touching the screen, and is skipped
@@ -238,8 +242,24 @@ UI shows the container's live memory/CPU (via Claude Code's `statusLine`, inject
 through a managed-settings file that never touches your own Claude settings):
 
 ```
-⬢ sandbox · mem 412MiB/7.6GiB · cpu 82%
+⬢ sandbox · mem 412MiB · cpu 82%                          ⎇ feature/login
 ```
+
+The branch sits at the right edge, padded against the terminal width read from
+`/dev/tty`. If the width can't be determined, or the line is too narrow for both
+halves, the branch is dropped rather than shown truncated. Two escape hatches, in
+case Claude renders the status line in an area narrower than the terminal:
+
+```sh
+sandbox-cli claude --env SANDBOX_STATUSLINE_RULER=1     # print a column ruler instead: read off the real width
+sandbox-cli claude --env SANDBOX_STATUSLINE_COLS=76     # align against that width instead of the terminal's
+sandbox-cli claude --env SANDBOX_STATUSLINE_RESERVE=8   # keep more columns free (default 4)
+```
+
+Start with the ruler: the last number still on screen *is* the usable width. Claude's
+status-line JSON carries no terminal geometry (it reports `worktree.branch`, `model`,
+`pr`, … but no width), so the alignment has to work from the tty width, and these
+exist for when Claude's frame is narrower than the terminal.
 
 Disable it with `--no-statusline`.
 
