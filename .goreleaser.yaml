@@ -1,0 +1,110 @@
+# GoReleaser config — https://goreleaser.com
+#
+# Local dry run (no publishing, artifacts land in ./dist):
+#   goreleaser release --snapshot --clean
+#   goreleaser build --snapshot --clean --single-target
+#
+# Real release (needs an authenticated gh/GITHUB_TOKEN and push rights):
+#   git tag 0.0.1beta.1 && git push origin 0.0.1beta.1
+#   goreleaser release --clean
+version: 2
+
+project_name: sandbox-cli
+
+before:
+  hooks:
+    - go mod tidy
+
+builds:
+  - id: sandbox-cli
+    main: ./cmd/sandbox-cli
+    binary: sandbox-cli
+    env:
+      - CGO_ENABLED=0
+    flags:
+      - -trimpath
+    ldflags:
+      - -s -w -X github.com/Aegmis/sandbox-cli/internal/version.Version={{ .Version }}
+    goos:
+      - linux
+      - darwin
+      - windows
+    goarch:
+      - amd64
+      - arm64
+
+archives:
+  - id: default
+    # tar.gz everywhere except Windows, which gets a zip — the convention most
+    # installers and package managers expect.
+    formats: [tar.gz]
+    format_overrides:
+      - goos: windows
+        formats: [zip]
+    name_template: >-
+      {{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}
+    files:
+      - README.md
+      - LICENSE
+
+checksum:
+  name_template: checksums.txt
+
+changelog:
+  sort: asc
+  filters:
+    exclude:
+      - "^docs:"
+      - "^test:"
+      - "^chore:"
+      - Merge pull request
+
+release:
+  # Tags like 0.0.1beta.1 / -rc / -beta are published as pre-releases.
+  prerelease: auto
+  draft: false
+  footer: |
+    ## Install
+
+    ```sh
+    curl -fsSL https://raw.githubusercontent.com/Aegmis/sandbox-cli/main/install.sh | sh
+    ```
+
+    Or with Homebrew:
+
+    ```sh
+    brew install Aegmis/tap/sandbox-cli
+    ```
+
+    Verify downloads against `checksums.txt`.
+
+# Homebrew cask, pushed to github.com/Aegmis/homebrew-tap on release. Homebrew
+# distributes prebuilt binaries as casks, so this is the current equivalent of
+# the old `brews:` formula block.
+#
+# The tap repository must exist and the release token must be able to write to
+# it — comment this block out until then.
+homebrew_casks:
+  - name: sandbox-cli
+    binaries:
+      - sandbox-cli
+    repository:
+      owner: Aegmis
+      name: homebrew-tap
+      # A PAT with write access to the tap repo; the default GITHUB_TOKEN can
+      # only write to this repository. Falls back to it for local runs.
+      token: "{{ if index .Env \"HOMEBREW_TAP_TOKEN\" }}{{ .Env.HOMEBREW_TAP_TOKEN }}{{ else }}{{ .Env.GITHUB_TOKEN }}{{ end }}"
+    directory: Casks
+    homepage: https://github.com/Aegmis/sandbox-cli
+    description: Run AI coding agents in a disposable, isolated Docker container
+    license: mit
+    dependencies:
+      - cask: docker
+    # Strip the quarantine attribute so the unsigned binary runs on macOS
+    # without a Gatekeeper prompt.
+    hooks:
+      post:
+        install: |
+          if system_command("/usr/bin/xattr", args: ["-h"]).exit_status == 0
+            system_command "/usr/bin/xattr", args: ["-dr", "com.apple.quarantine", "#{staged_path}/sandbox-cli"]
+          end

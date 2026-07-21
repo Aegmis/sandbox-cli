@@ -24,38 +24,45 @@ All" while limiting the blast radius to the project it's already meant to edit.
 ## Requirements
 
 - Docker (Docker Desktop on macOS)
-- Python 3.8+ to run the installer (Go 1.25+ only if you build from source)
+- Go 1.25+ only if you build from source
 
 ## Install
 
 ```sh
-curl -fsSL https://raw.githubusercontent.com/Aegmis/sandbox-cli/main/install.py | python3 -
+curl -fsSL https://raw.githubusercontent.com/Aegmis/sandbox-cli/main/install.sh | sh
 ```
 
-That detects your OS and CPU, downloads the matching release binary, verifies it
-against the release `SHA256SUMS`, and installs it to `~/.local/bin/sandbox-cli`
-(`%LOCALAPPDATA%\Programs\sandbox-cli` on Windows) — no root, no package manager.
-It prints a PATH hint if that directory isn't on your `PATH`.
+That detects your OS and CPU, downloads the matching release archive, verifies it
+against the release `checksums.txt`, and installs the binary to
+`~/.local/bin/sandbox-cli` — no root, no package manager. It prints a PATH hint if
+that directory isn't on your `PATH`.
 
 <details>
 <summary>Other ways to install</summary>
 
 ```sh
+# Homebrew (macOS and Linux)
+brew install Aegmis/tap/sandbox-cli
+
 # a specific release, or a different directory
-python3 install.py --version 0.0.1beta.1 --dest ~/bin
+sh install.sh --version 0.0.1beta.1 --dest ~/bin
 
 # while the repo is private, authenticate with a token
-GITHUB_TOKEN=ghp_... curl -fsSL https://raw.githubusercontent.com/Aegmis/sandbox-cli/main/install.py | python3 -
+GITHUB_TOKEN=ghp_... sh install.sh
 
-# grab a binary by hand from the releases page
-#   https://github.com/Aegmis/sandbox-cli/releases
+# Go users
+go install github.com/Aegmis/sandbox-cli/cmd/sandbox-cli@latest
 
 # build from source (needs Go 1.25+)
 make install        # go install ./cmd/sandbox-cli
 make build          # -> bin/sandbox-cli
 ```
 
-Supported release targets: linux, macOS and Windows on amd64 and arm64.
+Windows: download the `.zip` from the
+[releases page](https://github.com/Aegmis/sandbox-cli/releases) — the shell
+installer covers Linux and macOS only.
+
+Release targets: linux, macOS and Windows on amd64 and arm64.
 </details>
 
 ## Usage
@@ -382,7 +389,11 @@ landscape and an honest comparison.
 ```sh
 make test              # unit tests (no Docker)
 make test-integration  # end-to-end tests (requires Docker)
+make snapshot          # dry-run release into ./dist (needs goreleaser)
 ```
+
+Releases are built by GoReleaser (`.goreleaser.yaml`) and published by CI when a
+version tag is pushed — see `.github/workflows/release.yml`.
 
 The isolation invariants live in one pure function, `runtime.BuildArgs`, and are
 asserted by `internal/runtime/args_test.go` and the `--dry-run` golden test in

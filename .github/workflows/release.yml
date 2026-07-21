@@ -1,0 +1,42 @@
+name: release
+
+# Pushing a version tag publishes the release: cross-compiled archives for
+# linux/macOS/Windows on amd64+arm64, checksums, changelog, and the Homebrew
+# cask. Nothing is built on a laptop.
+on:
+  push:
+    tags:
+      - "*"
+
+permissions:
+  contents: write
+
+jobs:
+  goreleaser:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # GoReleaser builds the changelog from history, so it needs all of it.
+          fetch-depth: 0
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: Test
+        run: go test ./...
+
+      - uses: goreleaser/goreleaser-action@v6
+        with:
+          version: "~> v2"
+          args: release --clean
+        env:
+          # Publishes the release in this repo.
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # Needed only to push the Homebrew cask to Aegmis/homebrew-tap:
+          # a PAT with write access to that repo, stored as a repo secret.
+          # Until it exists, comment out the homebrew_casks block in
+          # .goreleaser.yaml or this step will fail at the publish stage.
+          HOMEBREW_TAP_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN }}
