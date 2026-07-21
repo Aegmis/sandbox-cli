@@ -71,6 +71,11 @@ release:
   # pre-release marker. Set this to false for a stable release.
   prerelease: true
   draft: false
+  # Re-running a release (after fixing a failure, or re-triggering the workflow)
+  # would otherwise abort with "422 already_exists" on the first asset that a
+  # previous partial run had already uploaded. Overwrite instead, so publishing
+  # is idempotent and safe to retry.
+  replace_existing_artifacts: true
   footer: |
     ## Install
 
