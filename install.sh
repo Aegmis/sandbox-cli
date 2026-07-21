@@ -77,11 +77,14 @@ cleanup() { rm -rf "$TMP"; }
 trap cleanup EXIT INT TERM
 
 if [ -z "$VERSION" ]; then
-  fetch "https://api.github.com/repos/${REPO}/releases/latest" "$TMP/rel.json" \
+  # The releases list, newest first — not /releases/latest, which silently
+  # excludes pre-releases and 404s when every release is one.
+  fetch "https://api.github.com/repos/${REPO}/releases?per_page=1" "$TMP/rel.json" \
     || die "cannot reach the GitHub API.
   If the repository is private, pass --token or set GITHUB_TOKEN."
   VERSION=$(sed -n 's/.*"tag_name"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' "$TMP/rel.json" | head -1)
-  [ -n "$VERSION" ] || die "could not determine the latest release tag"
+  [ -n "$VERSION" ] || die "no releases found for ${REPO}.
+  See https://github.com/${REPO}/releases, or pass --version explicitly."
 fi
 
 ARCHIVE="${BINARY}_${VERSION}_${OS}_${ARCH}.tar.gz"
