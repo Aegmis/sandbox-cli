@@ -337,4 +337,4 @@ Don't override with `--user root` unless you have a reason.
 ---
 
 For the security model in depth and how sandbox-cli compares to other tools, see
-[README.md](../README.md) and [COMPARISON.md](COMPARISON.md).
+[README.md](../README.md).
