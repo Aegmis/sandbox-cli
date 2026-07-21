@@ -6,7 +6,7 @@ LDFLAGS := -X $(PKG)/internal/version.Version=$(VERSION)
 # Release matrix for cross-compilation (override: make cross TARGETS="linux/amd64").
 TARGETS ?= linux/amd64 linux/arm64 darwin/amd64 darwin/arm64 windows/amd64 windows/arm64
 
-.PHONY: build install test test-integration lint fmt clean cross dist docker-build image
+.PHONY: build install test test-integration lint fmt clean cross dist docker-build image release
 
 build:
 	go build -ldflags "$(LDFLAGS)" -o bin/$(BINARY) ./cmd/sandbox-cli
@@ -34,6 +34,21 @@ dist:
 docker-build:
 	docker build --target export --build-arg VERSION=$(VERSION) \
 	  --output type=local,dest=./bin .
+
+# Publish a release: build the matrix, push the branch and tag, then create the
+# GitHub release with all six binaries + SHA256SUMS attached.
+# Requires an authenticated `gh` (https://cli.github.com) and push rights, so it
+# runs on a machine with credentials — not inside the sandbox.
+#   make release VERSION=0.0.1beta.1
+release: cross
+	@command -v gh >/dev/null || { echo "error: gh CLI is required (https://cli.github.com)"; exit 1; }
+	@git rev-parse "$(VERSION)" >/dev/null 2>&1 || { echo "error: tag $(VERSION) does not exist; run: git tag $(VERSION)"; exit 1; }
+	git push origin HEAD
+	git push origin "$(VERSION)"
+	gh release create "$(VERSION)" dist/* \
+	  --title "sandbox-cli $(VERSION)" \
+	  --notes "Cross-platform binaries for linux, macOS and Windows on amd64/arm64.\n\nInstall:\n\n    curl -fsSL https://raw.githubusercontent.com/Aegmis/sandbox-cli/main/install.py | python3 -\n\nVerify downloads against SHA256SUMS." \
+	  --prerelease
 
 # Multi-arch runnable image (requires buildx).
 image:
