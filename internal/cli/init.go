@@ -12,7 +12,11 @@ const scaffoldConfig = `# sandbox configuration (https://github.com/Aegmis/sandb
 # Only /workspace (this project) is mounted into the container. HOME is fake and
 # ephemeral. Uncomment and edit fields as needed.
 
-# image: sandbox-base:0.1.1
+# Override the container image. Leave unset to use the built-in sandbox-base,
+# whose tag is content-addressed (sandbox-base:<gen>-<hash>) so it rebuilds
+# itself whenever the image definition changes — pinning a tag here opts out of
+# that. Run "sandbox-cli config show" to see the current default.
+# image: my-org/my-dev-image:latest
 # workdir: /workspace
 # user: sandbox         # sandbox (non-root default) | root
 #                       # agents refuse --dangerously-skip-permissions as root
