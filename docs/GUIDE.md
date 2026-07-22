@@ -319,6 +319,28 @@ use `--worktree`; run the agent in a normal checkout instead.
   collide. One branch per agent.
 - Commit before you start: an agent can only build on what's in HEAD.
 
+### Handing files between two sandboxes
+
+Two sandboxes are blind to each other by design — each sees its own project and
+nothing more. When one agent produces something another needs (an API contract, a
+schema, a generated client), `--share` gives them one directory in common:
+
+```sh
+sandbox-cli claude --share --project ~/web-ui     # produces /shared/openapi.yaml
+sandbox-cli claude --share --project ~/backend    # consumes it
+```
+
+Then say it in the prompt: *"write the API contract to `/shared/openapi.yaml`"*,
+and on the other side *"read `/shared/openapi.yaml` and implement it"*. The same
+directory shows up for every sandbox using the flag — different worktrees,
+different projects, doesn't matter. It lives on the host at
+`~/.config/sandbox/shared`, so you can inspect and edit it like any folder.
+
+It's read-write for every sandbox that mounts it and keeps no history. For a
+one-way channel, mount it by hand instead
+(`--mount ~/.config/sandbox/shared:/shared:ro` on the consumer). For history,
+`git init --bare` a repo inside it and push from both sides.
+
 ### Passing Claude's own flags
 
 The wrappers forward everything they don't recognize, so Claude's flags work
@@ -470,6 +492,7 @@ Common flags (work on `run`/`claude`/`codex`):
 | `--cache` | Persist package caches across runs |
 | `--secret NAME=file:\|cmd:\|env:...` | Brokered credential (repeatable) |
 | `--worktree BRANCH` | Run in a git worktree for BRANCH |
+| `--share` | Mount `~/.config/sandbox/shared` at `/shared` (exchange files between sandboxes) |
 | `--git` | Forward git identity + trust the workspace |
 | `--host-gateway` / `--add-host H:IP` | Reach host services / add a host mapping |
 | `--memory 2g` / `--cpus 1.5` | Resource limits |

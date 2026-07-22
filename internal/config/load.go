@@ -78,6 +78,20 @@ func AgentStateDir(name string) string {
 	return filepath.Join(r, "agents", name)
 }
 
+// SharedDir returns the single sandbox-owned host directory that --share mounts
+// into the container, e.g. ~/.config/sandbox/shared. Unlike every other mount it
+// is deliberately *not* derived from the project: one well-known path is what
+// lets agents in different projects — or different worktrees of one project —
+// hand a file to each other without a git remote or a hand-written --mount.
+// Returns "" if the home directory cannot be determined.
+func SharedDir() string {
+	r := configRoot()
+	if r == "" {
+		return ""
+	}
+	return filepath.Join(r, "shared")
+}
+
 // findProjectConfig walks up from dir looking for .sandbox.yaml, stopping at the
 // filesystem root. Returns "" if none is found.
 func findProjectConfig(dir string) string {
