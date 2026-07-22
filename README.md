@@ -457,7 +457,11 @@ A few things worth knowing:
   mount it yourself instead: `--mount ~/.config/sandbox/shared:/shared:ro`.
 - **Not versioned.** You get the current file, not its history. If the contract
   starts changing and you want to see what moved, `git init --bare` a repo inside
-  `/shared` and push to it from both sides.
+  `/shared` and push to it from both sides. For the fuller version of that idea —
+  immutable version tags and a `contracts.lock` in the consuming repo, so a
+  handoff becomes a pinned dependency instead of a shared mutable file — see
+  [docs/proposals/pinned-contracts.md](docs/proposals/pinned-contracts.md)
+  (proposed; needs no code, works with `--share` today).
 - **Files, not messages.** The agents don't get notified; the reader sees whatever
   is on disk when it looks.
 
