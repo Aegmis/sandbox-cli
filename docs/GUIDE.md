@@ -496,6 +496,7 @@ Run `sandbox-cli config show` to see the effective, merged config.
 | `sandbox-cli amp [args]` | Run Amp (installed on first use) |
 | `sandbox-cli continue [args]` | Run Continue CLI (installed on first use) |
 | `sandbox-cli openhands [args]` | Run OpenHands CLI (installed on first use) |
+| `sandbox-cli droid [args]` | Run Droid (installed on first use) |
 | `sandbox-cli init` | Scaffold a `.sandbox.yaml` |
 | `sandbox-cli config show\|path\|validate` | Inspect the effective config |
 | `sandbox-cli stats` | Live table of running sandboxes |

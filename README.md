@@ -173,6 +173,7 @@ sandbox-owned host directory is bind-mounted as the agent's whole home:
 ~/.config/sandbox/agents/amp       ->  /sandbox/home   (sandbox-cli amp)
 ~/.config/sandbox/agents/continue  ->  /sandbox/home   (sandbox-cli continue)
 ~/.config/sandbox/agents/openhands ->  /sandbox/home   (sandbox-cli openhands)
+~/.config/sandbox/agents/droid     ->  /sandbox/home   (sandbox-cli droid)
 ```
 
 The whole home is persisted (not just `~/.claude`) because agents keep their

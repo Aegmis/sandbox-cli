@@ -25,6 +25,7 @@ func agentCmds() []*cobra.Command {
 		newAmpCmd(),
 		newContinueCmd(),
 		newOpenhandsCmd(),
+		newDroidCmd(),
 	}
 }
 

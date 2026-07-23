@@ -67,6 +67,7 @@ The shared contract is pinned by `TestAgentWrappersShareTheContract`
 | Amp | `amp` | `@ampcode/cli` (npm), installed on first use | `AMP_API_KEY`, `AMP_URL`, `AMP_LOG_LEVEL`, `AMP_SKIP_UPDATE_CHECK` |
 | Continue CLI | `continue` (runs `cn`) | `@continuedev/cli` (npm), installed on first use | `ANTHROPIC_API_KEY`, `CONTINUE_API_BASE`, AWS keys, `GOOGLE_CLOUD_PROJECT` |
 | OpenHands CLI | `openhands` | standalone binary from GitHub releases, on first use | `LLM_API_KEY`, `LLM_MODEL`, `LLM_BASE_URL` (need `--override-with-envs`), `ANTHROPIC_API_KEY`, `OPENAI_API_KEY`, `OPENHANDS_CLOUD_URL` |
+| Droid | `droid` | `droid` (npm), installed on first use | `FACTORY_API_KEY`, `FACTORY_API_BASE_URL`, `FACTORY_APP_BASE_URL`, `FACTORY_AIRGAP_ENABLED`, `FACTORY_ENV`; **sets** `FACTORY_DISABLE_KEYRING=1` |
 ### Status-line support, per agent
 
 Checked upstream in July 2026, because it is the first thing a new adapter has to
@@ -147,13 +148,7 @@ top. Package names and config paths below are the starting point for the work,
 **not verified facts**: confirm each against upstream when implementing, since a
 wrong package name in the Dockerfile fails silently (`|| true`).
 
-### 1. Droid
-
-- [ ] `droid` (Factory).
-- Install: upstream install script.
-- Env: `FACTORY_API_KEY`.
-
-### 2. Plandex
+### 1. Plandex
 
 - [ ] `plandex` / `pdx`.
 - Install: install script or Go binary.
