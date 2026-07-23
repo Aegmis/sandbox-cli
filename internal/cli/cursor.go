@@ -35,7 +35,7 @@ func newCursorCmd() *cobra.Command {
 			"forwarded to it. Sandbox options (leading --flags below, or before a `--`\n" +
 			"separator) are consumed first.\n\n" +
 			"Cursor CLI is installed into the sandbox agent home the first time you run\n" +
-			"it, from the official installer (around 225MB). It is not baked into the base\n" +
+			"it, from the official installer (around 219MB). It is not baked into the base\n" +
 			"image, so you only pay for it if you use this agent, and it keeps itself up to\n" +
 			"date in that persisted home afterwards.\n\n" +
 			"Your Cursor login is persisted by default in a sandbox-owned directory\n" +

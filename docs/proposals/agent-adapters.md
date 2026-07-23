@@ -122,13 +122,12 @@ equivalent.
 
 ### Why new agents are not baked
 
-Measured July 2026, unpacked sizes from the npm registry (decimal MB, Linux
-payload): `@github/copilot` 350, `@factory/cli` 148, `@cline/cli` 130,
-`@ampcode/cli` 107, `@google/gemini-cli` 98, `@qwen-code/qwen-code` 88,
-`@continuedev/cli` 65. Read the *payload* package, not the one you install:
-several agents publish a near-zero stub whose platform binary is fetched during
-install, so the headline package size understates them by two orders of
-magnitude. Aider and OpenHands are Python, so baking
+Installed on-disk sizes, arm64, measured July 2026 (see the full table in
+`docs/AGENTS.md`): copilot 350 MB, goose 273, cursor 219, droid 148, cline 130,
+amp 107, qwen 88, openhands 82, crush 81, continue 65. Read the *payload*
+package, not the one you install: several agents publish a near-zero npm stub
+whose platform binary is fetched during install, so the headline package size
+understates them by two orders of magnitude. Aider and OpenHands are Python, so baking
 them also means adding pip/pipx or uv to the image.
 
 Baking the whole queue would add somewhere between several hundred megabytes and

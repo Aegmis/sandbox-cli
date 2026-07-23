@@ -31,7 +31,7 @@ func newCopilotCmd() *cobra.Command {
 			"Sandbox options (leading --flags below, or before a `--` separator) are\n" +
 			"consumed first.\n\n" +
 			"Copilot CLI is installed into the sandbox agent home the first time you run\n" +
-			"it. It is a large download (around 300MB) and is not baked into the base\n" +
+			"it. It is a large download (around 350MB) and is not baked into the base\n" +
 			"image, so you only pay for it if you use this agent.\n\n" +
 			"Your Copilot login is persisted by default in a sandbox-owned directory\n" +
 			"(~/.config/sandbox/agents/copilot, separate from your host ~/.copilot), so\n" +

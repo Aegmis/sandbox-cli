@@ -36,7 +36,7 @@ func newDroidCmd() *cobra.Command {
 			"Sandbox options (leading --flags below, or before a `--` separator) are\n" +
 			"consumed first.\n\n" +
 			"Droid is installed into the sandbox agent home the first time you run it\n" +
-			"(around 150MB). It is not baked into the base image, so you only pay the\n" +
+			"(around 148MB). It is not baked into the base image, so you only pay the\n" +
 			"download if you use this agent.\n\n" +
 			"Your Droid login is persisted by default in a sandbox-owned directory\n" +
 			"(~/.config/sandbox/agents/droid, separate from your host ~/.factory), so you\n" +

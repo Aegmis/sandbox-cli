@@ -54,25 +54,34 @@ persisted agent home the first time you run it — so the image stays small and 
 only download agents you actually use. That first run takes a while and needs
 network; later runs start immediately.
 
-| Agent | Availability | Installed size |
+| Agent | Availability | Installed size (approx.) |
 |---|---|---|
 | `claude`, `codex`, `gemini`, `opencode` | baked into the base image | — |
 | `copilot` | on first use | 350 MB |
+| `goose` | on first use | 273 MB |
+| `cursor` | on first use | 219 MB |
 | `droid` | on first use | 148 MB |
 | `cline` | on first use | 130 MB |
 | `amp` | on first use | 107 MB |
 | `qwen` | on first use | 88 MB |
+| `openhands` | on first use | 82 MB |
+| `crush` | on first use | 81 MB |
 | `continue` | on first use | 65 MB |
-| `cursor` | on first use | ~225 MB (reported, not measured) |
-| `aider` | on first use | large — uv plus Aider's Python dependencies |
-| `goose` | on first use | 141 MB (musl) / 285 MB (glibc) |
-| `openhands`, `crush` | on first use | a single platform binary, size not published |
+| `aider` | on first use | ~300 MB (uv + Aider's Python deps; not measured) |
 
-Sizes are the npm registry's unpacked size for each agent's Linux payload
-(arm64; x64 is within a few percent), in decimal MB as npm reports them. Only the
-payload matching your platform is downloaded. The four agents without an npm
-package are marked — `cursor` is the vendor's own figure, and the two binary
-installs publish no size, so those are the numbers I could not verify.
+These are the **on-disk installed** sizes for the arm64 build, measured in July
+2026 — not the compressed download, which is roughly half. x64 is within a few
+percent. Every figure except `aider` was verified by installing the artifact and
+measuring it: the npm agents from the platform payload the stub package pulls,
+and `goose`/`cursor`/`openhands`/`crush` by downloading and extracting the
+release. `aider` installs a chain of Python wheels through uv whose total is hard
+to pin without running it, so its number is an estimate and flagged as such.
+
+Two notes on the larger ones. `goose` ships a glibc ("standard", 273 MB) and a
+smaller musl (136 MB) build; on the glibc base image the installer picks the
+standard one automatically, which is the number shown. `copilot` is the biggest
+at 350 MB and the one most likely to look like a hang on first run — it is not,
+it is downloading.
 
 If an install fails you get an explicit message and exit code 127 — not a
 mysterious "command not found".

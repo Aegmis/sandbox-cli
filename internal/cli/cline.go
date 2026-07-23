@@ -30,7 +30,7 @@ func newClineCmd() *cobra.Command {
 			"Sandbox options (leading --flags below, or before a `--` separator) are\n" +
 			"consumed first.\n\n" +
 			"Cline is installed into the sandbox agent home the first time you run it,\n" +
-			"which takes a while: the platform binary is around 150MB. It is not baked\n" +
+			"which takes a while: the platform binary is around 130MB. It is not baked\n" +
 			"into the base image, so you only pay that if you use it.\n\n" +
 			"Your Cline login is persisted by default in a sandbox-owned directory\n" +
 			"(~/.config/sandbox/agents/cline, separate from your host ~/.cline), so you\n" +
