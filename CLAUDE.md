@@ -84,7 +84,9 @@ baking every adapter would put hundreds of megabytes in front of every user for 
 will never run, while a lazily-installed adapter costs the image nothing. The four the image already
 carries (claude, codex, gemini, opencode) stay baked so today's users see no change. The queue of
 agents still to adapt, ordered by popularity, plus the full checklist, is in
-`docs/proposals/agent-adapters.md`.
+`docs/proposals/agent-adapters.md`. User-facing setup for each agent — prerequisites, login
+flow, forwarded variables, `--allow` domains — is `docs/AGENTS.md`; a new adapter needs a
+section there.
 
 ### The memory/CPU status line
 

@@ -40,7 +40,10 @@ The shared contract is pinned by `TestAgentWrappersShareTheContract`
       image nothing. Baking is reserved for the four agents already there; see
       "Why new agents are not baked" below.
 - [ ] Add the agent to the wrapper table in `wrapper_test.go`.
-- [ ] Document it: `README.md` (agent list, persisted-login table), `docs/GUIDE.md`.
+- [ ] Document it in `docs/AGENTS.md`: prerequisites, the login flow (does it
+      work without a browser?), forwarded variables, anything the sandbox sets
+      on the agent's behalf, and any extra `--allow` domains. Then the agent
+      lists in `README.md` and `docs/GUIDE.md`.
 - [ ] Check whether the agent has a status-line hook (see the table below). If it
       does, wire it; if not, leave the gauge out — see the note there on why the
       tmux workaround was reverted.

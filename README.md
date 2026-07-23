@@ -16,6 +16,9 @@ a prompt-injected command can't touch the rest of your machine.
    for claude, your history for this one project — both opt-out; see below)
 ```
 
+> **Per-agent setup — prerequisites, how to log in without a browser, and what
+> each agent needs under `--allow` — is in the [Agent reference](docs/AGENTS.md).**
+
 > New here? Start with the **[User Guide](docs/GUIDE.md)** — setup, everyday
 > usage, and a friendly tour of every feature.
 

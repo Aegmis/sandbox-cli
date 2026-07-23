@@ -431,6 +431,10 @@ its flags untouched (so `--dangerously-skip-permissions` just works), and
 **persist each agent's login** in a sandbox-owned folder — one per agent — so you
 only log in once, kept separate from your real `~/.claude`, `~/.gemini`, etc.
 
+**Setting one up:** prerequisites, the login flow for each (none of them need a
+browser inside the container), what the sandbox sets for you, and the extra
+`--allow` domains are all in the **[Agent reference](AGENTS.md)**.
+
 Adding another agent is a small, well-defined piece of work; the queue and the
 per-adapter checklist live in
 [docs/proposals/agent-adapters.md](proposals/agent-adapters.md).
