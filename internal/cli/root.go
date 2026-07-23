@@ -40,6 +40,7 @@ type runFlags struct {
 	hostGateway bool
 	git         bool
 	runtime     string
+	share       bool
 
 	// Auth persistence (agent wrappers only). persistName is the sandbox-owned
 	// host state dir name (e.g. "claude") mounted as the agent's HOME.
@@ -135,6 +136,25 @@ func newSession(rf *runFlags) (*sandbox.Session, sandbox.Options, error) {
 	// running different branches of the same repo at once.
 	opts.Branch = worktree.Branch(config.ExpandTilde(projectDir))
 
+	// --share: mount one sandbox-owned host directory at /shared. This is the
+	// only mount that is intentionally the *same* for every project, which is
+	// what makes it a channel: two agents that share nothing else — different
+	// repos, different worktrees, different containers — can hand a file over
+	// through it. Opt-in, because a cross-project channel is exactly the kind of
+	// reach the sandbox otherwise refuses by default.
+	if rf.share {
+		dir := config.SharedDir()
+		if dir == "" {
+			return nil, sandbox.Options{}, fmt.Errorf("--share: cannot determine the config directory (no HOME?)")
+		}
+		if err := os.MkdirAll(dir, 0o700); err != nil {
+			return nil, sandbox.Options{}, fmt.Errorf("creating shared dir %s: %w", dir, err)
+		}
+		seedSharedReadme(dir)
+		opts.ExtraMounts = append(opts.ExtraMounts, dir+":"+sharedTarget+":rw")
+		fmt.Fprintf(os.Stderr, "sandbox-cli: sharing %s at %s\n", dir, sharedTarget)
+	}
+
 	// Persist agent login in a dedicated, sandbox-owned host dir mounted as the
 	// agent's whole HOME, so login survives the ephemeral container.
 	if rf.persistName != "" && !rf.noPersistAuth {
@@ -190,6 +210,7 @@ func addRunFlags(cmd *cobra.Command, rf *runFlags) {
 	f.BoolVar(&rf.hostGateway, "host-gateway", false, "map host.docker.internal to the host so the agent can reach host MCP servers (Linux)")
 	f.BoolVar(&rf.git, "git", false, "forward host git identity and trust the workspace so git commits just work in-container")
 	f.StringVar(&rf.runtime, "runtime", "", "OCI runtime for stronger isolation, e.g. kata-runtime (microVM) or runsc (gVisor); must be registered with docker")
+	f.BoolVar(&rf.share, "share", false, "mount the shared dir (~/.config/sandbox/shared) at /shared so agents in different projects can exchange files")
 
 	// Flags before -- are ours; everything after -- is the guest command verbatim.
 	f.SetInterspersed(false)

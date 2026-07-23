@@ -319,6 +319,28 @@ use `--worktree`; run the agent in a normal checkout instead.
   collide. One branch per agent.
 - Commit before you start: an agent can only build on what's in HEAD.
 
+### Handing files between two sandboxes
+
+Two sandboxes are blind to each other by design — each sees its own project and
+nothing more. When one agent produces something another needs (an API contract, a
+schema, a generated client), `--share` gives them one directory in common:
+
+```sh
+sandbox-cli claude --share --project ~/web-ui     # produces /shared/openapi.yaml
+sandbox-cli claude --share --project ~/backend    # consumes it
+```
+
+Then say it in the prompt: *"write the API contract to `/shared/openapi.yaml`"*,
+and on the other side *"read `/shared/openapi.yaml` and implement it"*. The same
+directory shows up for every sandbox using the flag — different worktrees,
+different projects, doesn't matter. It lives on the host at
+`~/.config/sandbox/shared`, so you can inspect and edit it like any folder.
+
+It's read-write for every sandbox that mounts it and keeps no history. For a
+one-way channel, mount it by hand instead
+(`--mount ~/.config/sandbox/shared:/shared:ro` on the consumer). For history,
+`git init --bare` a repo inside it and push from both sides.
+
 ### Passing Claude's own flags
 
 The wrappers forward everything they don't recognize, so Claude's flags work
@@ -470,6 +492,7 @@ Common flags (work on `run`/`claude`/`codex`):
 | `--cache` | Persist package caches across runs |
 | `--secret NAME=file:\|cmd:\|env:...` | Brokered credential (repeatable) |
 | `--worktree BRANCH` | Run in a git worktree for BRANCH |
+| `--share` | Mount `~/.config/sandbox/shared` at `/shared` (exchange files between sandboxes) |
 | `--git` | Forward git identity + trust the workspace |
 | `--host-gateway` / `--add-host H:IP` | Reach host services / add a host mapping |
 | `--memory 2g` / `--cpus 1.5` | Resource limits |
@@ -501,6 +524,36 @@ point the agent at `host.docker.internal`.
 **Files in `/workspace` are owned by the wrong user (Linux)** — run as your own
 uid: `--user "$(id -u):$(id -g)"`. On macOS Docker Desktop this is handled
 automatically.
+
+**I can't select text with the mouse** — the agent's UI turns on mouse reporting,
+so your terminal hands the drag to the application instead of making a selection.
+Hold your terminal's override key while dragging: `Option` in iTerm2, `Shift` in
+Ghostty. For a code block, add the rectangular-selection modifier (`Cmd+Option`
+in iTerm2, `Ctrl+Alt` in Ghostty) so you get the code columns without the
+surrounding frame. None of this involves the sandbox — it behaves the same way
+running the agent directly on the host.
+
+**Claude's `/copy` doesn't reach my clipboard** — `/copy` is Claude Code's own
+command, and it shells out to a platform clipboard tool (`pbcopy` on macOS,
+`xclip`/`xsel`/`wl-copy` on Linux). The container has none of them, and none
+could work there: there is no X or Wayland display to reach, and `pbcopy` is a
+macOS binary that cannot run on Linux at all. Ask the agent to write the text to
+a file in `/workspace` and copy it host-side (`pbcopy < snippet.md`) — which also
+avoids the hard line wraps a screen selection picks up.
+
+**A tool says it copied, but nothing pastes** — something in the container is
+using an OSC 52 escape sequence to reach the host clipboard, and your terminal
+has to permit that. iTerm2 gates it behind Settings → General → Selection →
+"Applications in terminal may access clipboard" (off by default); tmux needs
+`set -g set-clipboard on` or it swallows the sequence; macOS Terminal.app has no
+support at all. Test the terminal on its own first, with no container involved:
+
+```sh
+printf '\033]52;c;%s\a' "$(printf hello | base64)"   # then paste
+```
+
+If that doesn't paste, it's terminal configuration and nothing in the sandbox can
+change it.
 
 **I want to see what it will do without running** — add `--dry-run`.
 
