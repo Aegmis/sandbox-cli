@@ -65,6 +65,7 @@ The shared contract is pinned by `TestAgentWrappersShareTheContract`
 | Cursor CLI | `cursor` | vendor installer, on first use | `CURSOR_API_KEY`, `CURSOR_API_ENDPOINT`; **sets** `NO_OPEN_BROWSER=1` |
 | Qwen Code | `qwen` | `@qwen-code/qwen-code` (npm), installed on first use | `OPENAI_API_KEY`, `ANTHROPIC_API_KEY`, `GEMINI_API_KEY`, `GOOGLE_API_KEY`, `DASHSCOPE_API_KEY`, `OPENROUTER_API_KEY`, `BAILIAN_CODING_PLAN_API_KEY`, base URLs; **sets** `SANDBOX=1`, `NO_BROWSER=1` |
 | Amp | `amp` | `@ampcode/cli` (npm), installed on first use | `AMP_API_KEY`, `AMP_URL`, `AMP_LOG_LEVEL`, `AMP_SKIP_UPDATE_CHECK` |
+| Continue CLI | `continue` (runs `cn`) | `@continuedev/cli` (npm), installed on first use | `ANTHROPIC_API_KEY`, `CONTINUE_API_BASE`, AWS keys, `GOOGLE_CLOUD_PROJECT` |
 ### Status-line support, per agent
 
 Checked upstream in July 2026, because it is the first thing a new adapter has to
@@ -145,13 +146,7 @@ top. Package names and config paths below are the starting point for the work,
 **not verified facts**: confirm each against upstream when implementing, since a
 wrong package name in the Dockerfile fails silently (`|| true`).
 
-### 1. Continue CLI
-
-- [ ] `cn`.
-- Install: npm (`@continuedev/cli`).
-- Env: `CONTINUE_API_KEY` plus provider keys; config `~/.continue`.
-
-### 2. OpenHands CLI
+### 1. OpenHands CLI
 
 - [ ] `openhands`.
 - Install: Python — blocked on the same image work as aider.
@@ -161,13 +156,13 @@ wrong package name in the Dockerfile fails silently (`|| true`).
   only meaningful for the local/CLI-only runtime mode. Confirm that mode exists
   and works before starting.
 
-### 3. Droid
+### 2. Droid
 
 - [ ] `droid` (Factory).
 - Install: upstream install script.
 - Env: `FACTORY_API_KEY`.
 
-### 4. Plandex
+### 3. Plandex
 
 - [ ] `plandex` / `pdx`.
 - Install: install script or Go binary.
