@@ -11,8 +11,8 @@ import (
 	"os/exec"
 	"path/filepath"
 
-	"github.com/Aegmis/sandbox-cli/internal/runtime"
-	"github.com/Aegmis/sandbox-cli/internal/version"
+	"github.com/Amitgb14/sandbox-cli/internal/runtime"
+	"github.com/Amitgb14/sandbox-cli/internal/version"
 )
 
 //go:embed assets/Dockerfile

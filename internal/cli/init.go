@@ -8,7 +8,7 @@ import (
 	"github.com/spf13/cobra"
 )
 
-const scaffoldConfig = `# sandbox configuration (https://github.com/Aegmis/sandbox-cli)
+const scaffoldConfig = `# sandbox configuration (https://github.com/Amitgb14/sandbox-cli)
 # Only /workspace (this project) is mounted into the container. HOME is fake and
 # ephemeral. Uncomment and edit fields as needed.
 

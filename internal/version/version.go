@@ -2,7 +2,7 @@
 package version
 
 // Version is the sandbox-cli release version. Overridable at build time via
-// -ldflags "-X github.com/Aegmis/sandbox-cli/internal/version.Version=x.y.z".
+// -ldflags "-X github.com/Amitgb14/sandbox-cli/internal/version.Version=x.y.z".
 var Version = "0.0.1beta.3"
 
 // BaseImageVersion is the human-readable generation of the base image. It is

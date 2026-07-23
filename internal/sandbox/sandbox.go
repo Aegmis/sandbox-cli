@@ -9,10 +9,10 @@ import (
 	"os/exec"
 	"strings"
 
-	"github.com/Aegmis/sandbox-cli/internal/audit"
-	"github.com/Aegmis/sandbox-cli/internal/config"
-	"github.com/Aegmis/sandbox-cli/internal/creds"
-	"github.com/Aegmis/sandbox-cli/internal/runtime"
+	"github.com/Amitgb14/sandbox-cli/internal/audit"
+	"github.com/Amitgb14/sandbox-cli/internal/config"
+	"github.com/Amitgb14/sandbox-cli/internal/creds"
+	"github.com/Amitgb14/sandbox-cli/internal/runtime"
 )
 
 // Session ties a resolved config to a runtime backend and an audit sink.

@@ -7,7 +7,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/Aegmis/sandbox-cli/internal/worktree"
+	"github.com/Amitgb14/sandbox-cli/internal/worktree"
 )
 
 // initRepo builds a throwaway git repository with one commit, or skips the test

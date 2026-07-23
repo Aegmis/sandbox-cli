@@ -8,8 +8,8 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/Aegmis/sandbox-cli/internal/runtime"
-	"github.com/Aegmis/sandbox-cli/internal/worktree"
+	"github.com/Amitgb14/sandbox-cli/internal/runtime"
+	"github.com/Amitgb14/sandbox-cli/internal/worktree"
 )
 
 func newRunCmd() *cobra.Command {

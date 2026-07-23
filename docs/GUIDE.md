@@ -57,11 +57,27 @@ containers in its own Linux VM). See the
 
 ## Install
 
+The one-line installer detects your OS and CPU, downloads the matching release
+archive, verifies it against the release `checksums.txt`, and installs to
+`~/.local/bin/sandbox-cli` — no root, no package manager:
+
 ```sh
-# from a clone of the repo
+curl -fsSL https://raw.githubusercontent.com/Amitgb14/sandbox-cli/main/install.sh | sh
+```
+
+If you already have Go, install straight from the module instead:
+
+```sh
+go install github.com/Amitgb14/sandbox-cli/cmd/sandbox-cli@latest
+```
+
+Or build from a clone (Go 1.25+):
+
+```sh
+git clone https://github.com/Amitgb14/sandbox-cli.git
+cd sandbox-cli
 make build        # -> ./bin/sandbox-cli
-# or install onto your PATH
-make install      # -> $(go env GOPATH)/bin/sandbox-cli
+make install      # or onto your PATH: $(go env GOPATH)/bin/sandbox-cli
 ```
 
 Verify:

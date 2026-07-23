@@ -5,7 +5,7 @@ package main
 import (
 	"os"
 
-	"github.com/Aegmis/sandbox-cli/internal/cli"
+	"github.com/Amitgb14/sandbox-cli/internal/cli"
 )
 
 func main() {

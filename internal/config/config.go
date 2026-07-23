@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/Aegmis/sandbox-cli/internal/image"
+	"github.com/Amitgb14/sandbox-cli/internal/image"
 )
 
 // Config is the merged sandbox configuration.

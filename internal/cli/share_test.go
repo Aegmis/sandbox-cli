@@ -7,7 +7,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/Aegmis/sandbox-cli/internal/config"
+	"github.com/Amitgb14/sandbox-cli/internal/config"
 )
 
 // shareMount is the mount entry --share is expected to append.

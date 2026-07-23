@@ -111,4 +111,4 @@ host path outside the workspace — keep it scoped to the single project bucket.
 
 - Non-root by default (`user: sandbox`): agents refuse `--dangerously-skip-permissions` as root, and
   on macOS Docker Desktop bind-mount ownership is virtualized so files are still written as the host user.
-- Module path is `github.com/Aegmis/sandbox-cli`. Standard library + `cobra` + `yaml.v3` only.
+- Module path is `github.com/Amitgb14/sandbox-cli`. Standard library + `cobra` + `yaml.v3` only.

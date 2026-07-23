@@ -14,7 +14,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/Aegmis/sandbox-cli/internal/config"
+	"github.com/Amitgb14/sandbox-cli/internal/config"
 )
 
 // gitBin is the git executable; a variable so tests can stub it if needed.

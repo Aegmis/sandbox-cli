@@ -37,7 +37,7 @@ All" while limiting the blast radius to the project it's already meant to edit.
 ## Install
 
 ```sh
-curl -fsSL https://raw.githubusercontent.com/Aegmis/sandbox-cli/main/install.sh | sh
+curl -fsSL https://raw.githubusercontent.com/Amitgb14/sandbox-cli/main/install.sh | sh
 ```
 
 That detects your OS and CPU, downloads the matching release archive, verifies it
@@ -56,7 +56,7 @@ sh install.sh --version 0.0.1beta.3 --dest ~/bin
 GITHUB_TOKEN=ghp_... sh install.sh
 
 # Go users
-go install github.com/Aegmis/sandbox-cli/cmd/sandbox-cli@latest
+go install github.com/Amitgb14/sandbox-cli/cmd/sandbox-cli@latest
 
 # build from source (needs Go 1.25+)
 make install        # go install ./cmd/sandbox-cli
@@ -64,7 +64,7 @@ make build          # -> bin/sandbox-cli
 ```
 
 Windows: download the `.zip` from the
-[releases page](https://github.com/Aegmis/sandbox-cli/releases) — the shell
+[releases page](https://github.com/Amitgb14/sandbox-cli/releases) — the shell
 installer covers Linux and macOS only.
 
 Release targets: linux, macOS and Windows on amd64 and arm64.
@@ -73,7 +73,7 @@ Release targets: linux, macOS and Windows on amd64 and arm64.
 ## Uninstall
 
 ```sh
-curl -fsSL https://raw.githubusercontent.com/Aegmis/sandbox-cli/main/install.sh | sh -s -- --uninstall
+curl -fsSL https://raw.githubusercontent.com/Amitgb14/sandbox-cli/main/install.sh | sh -s -- --uninstall
 ```
 
 That removes the `sandbox-cli` binary and then *reports* what else is on disk
@@ -647,7 +647,7 @@ quality and a focused feature set (tested isolation invariants, default-deny env
 dual-agent wrapping, observability) rather than a hard security boundary — for that,
 reach for microVM tooling.
 
-| Feature / Aspect | sandbox-cli (Aegmis) | Built-in agent sandboxes (Claude/Codex) | Docker Sandboxes (`sbx`) | Native OS tools (Seatbelt/Landlock) | Cloud microVMs (E2B, Daytona, …) |
+| Feature / Aspect | sandbox-cli (Amitgb14) | Built-in agent sandboxes (Claude/Codex) | Docker Sandboxes (`sbx`) | Native OS tools (Seatbelt/Landlock) | Cloud microVMs (E2B, Daytona, …) |
 |---|---|---|---|---|---|
 | Isolation strength | Good (Docker + hardening; optional gVisor/Kata) | Medium (OS-level, shared kernel) | Excellent (microVM / Firecracker) | Good (kernel/OS primitives) | Excellent (microVMs) |
 | Local / no cloud | Yes | Yes | Yes | Yes | No |

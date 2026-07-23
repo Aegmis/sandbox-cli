@@ -13,11 +13,11 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/Aegmis/sandbox-cli/internal/config"
-	"github.com/Aegmis/sandbox-cli/internal/image"
-	"github.com/Aegmis/sandbox-cli/internal/runtime"
-	"github.com/Aegmis/sandbox-cli/internal/sandbox"
-	"github.com/Aegmis/sandbox-cli/internal/worktree"
+	"github.com/Amitgb14/sandbox-cli/internal/config"
+	"github.com/Amitgb14/sandbox-cli/internal/image"
+	"github.com/Amitgb14/sandbox-cli/internal/runtime"
+	"github.com/Amitgb14/sandbox-cli/internal/sandbox"
+	"github.com/Amitgb14/sandbox-cli/internal/worktree"
 )
 
 func newTestSession(t *testing.T, cfg config.Config) *sandbox.Session {

@@ -62,7 +62,7 @@ RUN --mount=type=cache,target=/go/pkg/mod \
     export GOARM="$(printf '%s' "${TARGETVARIANT}" | tr -d 'v')"; \
     GOOS="${TARGETOS}" GOARCH="${TARGETARCH}" \
     go build -trimpath \
-      -ldflags "-s -w -X github.com/Aegmis/sandbox-cli/internal/version.Version=${VERSION}" \
+      -ldflags "-s -w -X github.com/Amitgb14/sandbox-cli/internal/version.Version=${VERSION}" \
       -o /out/sandbox-cli ./cmd/sandbox-cli
 
 # ---- release matrix ---------------------------------------------------------
@@ -82,7 +82,7 @@ RUN --mount=type=cache,target=/go/pkg/mod \
       echo "==> ${name}"; \
       GOOS="${os}" GOARCH="${arch}" \
       go build -trimpath \
-        -ldflags "-s -w -X github.com/Aegmis/sandbox-cli/internal/version.Version=${VERSION}" \
+        -ldflags "-s -w -X github.com/Amitgb14/sandbox-cli/internal/version.Version=${VERSION}" \
         -o "/out/${name}" ./cmd/sandbox-cli; \
     done; \
     cd /out && sha256sum * > SHA256SUMS && cat SHA256SUMS

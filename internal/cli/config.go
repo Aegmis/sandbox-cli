@@ -7,7 +7,7 @@ import (
 	"github.com/spf13/cobra"
 	"gopkg.in/yaml.v3"
 
-	"github.com/Aegmis/sandbox-cli/internal/config"
+	"github.com/Amitgb14/sandbox-cli/internal/config"
 )
 
 func newConfigCmd() *cobra.Command {

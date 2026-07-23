@@ -4,7 +4,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/Aegmis/sandbox-cli/internal/runtime"
+	"github.com/Amitgb14/sandbox-cli/internal/runtime"
 )
 
 // TestDryRunInvariants is the cheap, no-Docker proof of the security invariant:

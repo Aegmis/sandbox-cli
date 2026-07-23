@@ -30,7 +30,7 @@ builds:
     flags:
       - -trimpath
     ldflags:
-      - -s -w -X github.com/Aegmis/sandbox-cli/internal/version.Version={{ .Version }}
+      - -s -w -X github.com/Amitgb14/sandbox-cli/internal/version.Version={{ .Version }}
     goos:
       - linux
       - darwin
@@ -80,7 +80,7 @@ release:
     ## Install
 
     ```sh
-    curl -fsSL https://raw.githubusercontent.com/Aegmis/sandbox-cli/main/install.sh | sh
+    curl -fsSL https://raw.githubusercontent.com/Amitgb14/sandbox-cli/main/install.sh | sh
     ```
 
     Verify downloads against `checksums.txt`.

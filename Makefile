@@ -1,5 +1,5 @@
 BINARY := sandbox-cli
-PKG := github.com/Aegmis/sandbox-cli
+PKG := github.com/Amitgb14/sandbox-cli
 VERSION ?= $(shell git describe --tags --always 2>/dev/null || echo dev)
 LDFLAGS := -X $(PKG)/internal/version.Version=$(VERSION)
 

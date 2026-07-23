@@ -2,7 +2,7 @@
 # Install sandbox-cli: pick the right release archive for this machine and put
 # the binary in the user's home. No root, no package manager.
 #
-#   curl -fsSL https://raw.githubusercontent.com/Aegmis/sandbox-cli/main/install.sh | sh
+#   curl -fsSL https://raw.githubusercontent.com/Amitgb14/sandbox-cli/main/install.sh | sh
 #
 # Options (when run as a file, e.g. `sh install.sh --version 0.0.1beta.2`):
 #   --version VER   install a specific release        (default: latest)
@@ -16,7 +16,7 @@
 
 set -eu
 
-REPO="Aegmis/sandbox-cli"
+REPO="Amitgb14/sandbox-cli"
 BINARY="sandbox-cli"
 VERSION=""
 DEST="${HOME}/.local/bin"

@@ -3,7 +3,7 @@
 // can add an egress proxy with a domain allowlist (github.com, npm, pypi, ...).
 package netpolicy
 
-import "github.com/Aegmis/sandbox-cli/internal/runtime"
+import "github.com/Amitgb14/sandbox-cli/internal/runtime"
 
 // Policy adjusts a RunSpec to enforce a network posture.
 type Policy interface {
