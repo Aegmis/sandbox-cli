@@ -58,6 +58,7 @@ The shared contract is pinned by `TestAgentWrappersShareTheContract`
 | OpenCode | `opencode` | `opencode-ai`, baked + HOME fallback | `ANTHROPIC_API_KEY`, `OPENAI_API_KEY`, `GEMINI_API_KEY`, `GROQ_API_KEY`, `OPENROUTER_API_KEY`, `OPENCODE_CONFIG`, `OPENCODE_DISABLE_AUTOUPDATE` |
 
 | Cline | `cline` | `cline` (npm), installed on first use | `ANTHROPIC_API_KEY`, `CLINE_API_KEY`, `OPENAI_API_KEY`, `OPENROUTER_API_KEY`, `AI_GATEWAY_API_KEY`, `V0_API_KEY` |
+| Goose | `goose` | official installer, on first use (needs `bzip2`) | `ANTHROPIC_API_KEY`, `OPENAI_API_KEY`, `GOOGLE_API_KEY`, `GROQ_API_KEY`, `OPENROUTER_API_KEY`, `GOOSE_PROVIDER`, `GOOSE_MODEL`, `GOOSE_FAST_MODEL`, `GOOSE_MODE`; **sets** `GOOSE_DISABLE_KEYRING=1` |
 ### Status-line support, per agent
 
 Checked upstream in July 2026, because it is the first thing a new adapter has to
@@ -77,6 +78,15 @@ own rendering came out unclear inside it, and a readable agent beats a gauge. If
 revisit this, the thing to establish first is that the agent's UI survives the
 multiplexer — the gauge part was never the hard bit. A per-agent native hook remains
 the only route worth taking without that evidence.
+
+Goose is the first adapter that had to **set** an env var rather than forward
+one. It stores secrets in the OS keyring over DBus; a container has no Secret
+Service, so `GOOSE_DISABLE_KEYRING=1` is injected on every run and secrets go to
+`~/.config/goose/secrets.yaml` inside the persisted home. Goose does attempt its
+own headless fallback, but relying on that would make the login depend on a
+heuristic instead of on the run. Its installer also extracts a `.tar.bz2`, which
+is why `bzip2` is now in the image — about 100KB, and without it the install
+fails. Note the project moved from `block/goose` to `aaif-goose/goose`.
 
 Gemini CLI is also worth knowing for a second reason: it reads a **system**
 settings file (`/etc/gemini-cli/settings.json`, overridable with
@@ -153,22 +163,13 @@ wrong package name in the Dockerfile fails silently (`|| true`).
   under `--allow` (the egress allowlist), whose baseline covers package registries
   but not necessarily the vendor's download host.
 
-### 4. Goose
-
-- [ ] `goose` (Block).
-- Install: upstream install script or Homebrew; a Linux binary download is the
-  likely path.
-- Config: `~/.config/goose/config.yaml`; keys in the system keyring — **check
-  this**, a keyring-backed login may not persist through a HOME bind mount alone,
-  which would make this the first adapter needing more than `AuthPersistDir`.
-
-### 5. Crush
+### 4. Crush
 
 - [ ] `crush` (Charm).
 - Install: npm (`@charmland/crush`) or a Go binary release.
 - Env: provider keys; config `~/.config/crush`.
 
-### 6. Qwen Code
+### 5. Qwen Code
 
 - [ ] `qwen`.
 - Install: npm (`@qwen-code/qwen-code`).
@@ -176,19 +177,19 @@ wrong package name in the Dockerfile fails silently (`|| true`).
   `DASHSCOPE_API_KEY`.
 - Note: a Gemini CLI fork, so the `gemini` adapter is the closest template.
 
-### 7. Amp
+### 6. Amp
 
 - [ ] `amp` (Sourcegraph).
 - Install: npm (`@sourcegraph/amp`).
 - Env: `AMP_API_KEY`, `AMP_URL`.
 
-### 8. Continue CLI
+### 7. Continue CLI
 
 - [ ] `cn`.
 - Install: npm (`@continuedev/cli`).
 - Env: `CONTINUE_API_KEY` plus provider keys; config `~/.continue`.
 
-### 9. OpenHands CLI
+### 8. OpenHands CLI
 
 - [ ] `openhands`.
 - Install: Python — blocked on the same image work as aider.
@@ -198,13 +199,13 @@ wrong package name in the Dockerfile fails silently (`|| true`).
   only meaningful for the local/CLI-only runtime mode. Confirm that mode exists
   and works before starting.
 
-### 10. Droid
+### 9. Droid
 
 - [ ] `droid` (Factory).
 - Install: upstream install script.
 - Env: `FACTORY_API_KEY`.
 
-### 11. Plandex
+### 10. Plandex
 
 - [ ] `plandex` / `pdx`.
 - Install: install script or Go binary.

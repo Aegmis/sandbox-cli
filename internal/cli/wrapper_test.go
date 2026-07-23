@@ -2,11 +2,14 @@ package cli
 
 import (
 	"errors"
+	"io"
 	"os"
 	"os/exec"
 	"reflect"
 	"strings"
 	"testing"
+
+	"github.com/spf13/cobra"
 )
 
 func TestSplitWrapperArgs(t *testing.T) {
@@ -190,6 +193,61 @@ func TestAgentBootstrapScriptRuns(t *testing.T) {
 	if strings.Contains(out, "installing") {
 		t.Errorf("present agent: should not have tried to install:\n%s", out)
 	}
+}
+
+// TestGooseForcesKeyringOff proves the one thing standing between the goose
+// wrapper and a broken promise. Goose stores secrets in the OS keyring, a
+// container has none, so without GOOSE_DISABLE_KEYRING reaching the container
+// the login does not survive — "log in once" would simply be false.
+//
+// The --env case is the regression that motivated the afterParse callback:
+// pflag's string array replaces its initial contents on the first --env, so
+// setting the variable before parsing would silently drop it for exactly the
+// users who pass an env var of their own.
+func TestGooseForcesKeyringOff(t *testing.T) {
+	for _, extra := range [][]string{nil, {"--env", "FOO=bar"}} {
+		line := renderDryRun(t, newGooseCmd, extra)
+		if !strings.Contains(line, gooseDisableKeyring) {
+			t.Errorf("goose %v: docker argv is missing %s:\n%s", extra, gooseDisableKeyring, line)
+		}
+		if len(extra) > 0 && !strings.Contains(line, "FOO=bar") {
+			t.Errorf("goose %v: the user's own --env was dropped:\n%s", extra, line)
+		}
+	}
+}
+
+// renderDryRun runs a wrapper with --dry-run and returns the docker command line
+// it printed — the real argv, not a reconstruction. HOME points at a temp dir so
+// the run neither reads nor creates anything in the real one.
+func renderDryRun(t *testing.T, ctor func() *cobra.Command, extra []string) string {
+	t.Helper()
+	t.Setenv("HOME", t.TempDir())
+
+	r, w, err := os.Pipe()
+	if err != nil {
+		t.Fatalf("pipe: %v", err)
+	}
+	orig := os.Stdout
+	os.Stdout = w
+	defer func() { os.Stdout = orig }()
+
+	done := make(chan string, 1)
+	go func() {
+		var b strings.Builder
+		io.Copy(&b, r)
+		done <- b.String()
+	}()
+
+	cmd := ctor()
+	cmd.SetArgs(append([]string{"--dry-run"}, extra...))
+	execErr := cmd.Execute()
+	w.Close()
+	out := <-done
+	r.Close()
+	if execErr != nil {
+		t.Fatalf("dry run failed: %v", execErr)
+	}
+	return out
 }
 
 func TestClaudeProjectBucket(t *testing.T) {

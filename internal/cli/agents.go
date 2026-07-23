@@ -16,6 +16,7 @@ func agentCmds() []*cobra.Command {
 		newGeminiCmd(),
 		newOpencodeCmd(),
 		newClineCmd(),
+		newGooseCmd(),
 	}
 }
 

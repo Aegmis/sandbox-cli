@@ -18,6 +18,9 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
       python3 \
       build-essential \
       iptables \
+      # Goose's installer extracts a .tar.bz2, and GNU tar shells out to bzip2
+      # for that. ~100KB, and without it `sandbox-cli goose` cannot install.
+      bzip2 \
     && rm -rf /var/lib/apt/lists/*
 
 # Pre-install the agents so `sandbox-cli codex` / `gemini` / `opencode` and an

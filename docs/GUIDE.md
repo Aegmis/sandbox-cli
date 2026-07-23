@@ -487,6 +487,7 @@ Run `sandbox-cli config show` to see the effective, merged config.
 | `sandbox-cli gemini [args]` | Run Gemini CLI |
 | `sandbox-cli opencode [args]` | Run OpenCode |
 | `sandbox-cli cline [args]` | Run Cline (installed on first use) |
+| `sandbox-cli goose [args]` | Run Goose (installed on first use) |
 | `sandbox-cli init` | Scaffold a `.sandbox.yaml` |
 | `sandbox-cli config show\|path\|validate` | Inspect the effective config |
 | `sandbox-cli stats` | Live table of running sandboxes |
