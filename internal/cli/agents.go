@@ -18,6 +18,7 @@ func agentCmds() []*cobra.Command {
 		newClineCmd(),
 		newGooseCmd(),
 		newCrushCmd(),
+		newAiderCmd(),
 	}
 }
 

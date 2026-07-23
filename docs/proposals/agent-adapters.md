@@ -60,6 +60,7 @@ The shared contract is pinned by `TestAgentWrappersShareTheContract`
 | Cline | `cline` | `cline` (npm), installed on first use | `ANTHROPIC_API_KEY`, `CLINE_API_KEY`, `OPENAI_API_KEY`, `OPENROUTER_API_KEY`, `AI_GATEWAY_API_KEY`, `V0_API_KEY` |
 | Goose | `goose` | official installer, on first use (needs `bzip2`) | `ANTHROPIC_API_KEY`, `OPENAI_API_KEY`, `GOOGLE_API_KEY`, `GROQ_API_KEY`, `OPENROUTER_API_KEY`, `GOOSE_PROVIDER`, `GOOSE_MODEL`, `GOOSE_FAST_MODEL`, `GOOSE_MODE`; **sets** `GOOSE_DISABLE_KEYRING=1` |
 | Crush | `crush` | `@charmland/crush` (npm), installed on first use | `ANTHROPIC_API_KEY`, `OPENAI_API_KEY`, `GEMINI_API_KEY`, `OPENROUTER_API_KEY`, `GROQ_API_KEY`, `HYPER_API_KEY`, AWS/Azure keys |
+| Aider | `aider` | `aider-chat` (PyPI) via uv, on first use | `OPENAI_API_KEY`, `ANTHROPIC_API_KEY`, `GEMINI_API_KEY`, `DEEPSEEK_API_KEY`, `OPENROUTER_API_KEY`, `OPENAI_API_BASE`, `ANTHROPIC_API_BASE` |
 ### Status-line support, per agent
 
 Checked upstream in July 2026, because it is the first thing a new adapter has to
@@ -79,6 +80,15 @@ own rendering came out unclear inside it, and a readable agent beats a gauge. If
 revisit this, the thing to establish first is that the agent's UI survives the
 multiplexer — the gauge part was never the hard bit. A per-agent native hook remains
 the only route worth taking without that evidence.
+
+Aider is the first non-npm adapter. uv carries it: a single static binary that
+installs itself and its tools under `~/.local`, needing no root and touching no
+system Python. Pin the interpreter with `--python "$(command -v python3)"` or uv
+downloads a managed CPython — another ~87MB for one already in the image.
+Bookworm ships 3.11 and Aider wants >=3.10,<3.13, so the image's own is fine.
+The route the queue assumed (add pip/pipx to the image) turned out to be
+unnecessary. Note Aider writes into the *workspace*: a chat history file, a tags
+cache, and an appended line in the repo's `.gitignore`.
 
 Goose is the first adapter that had to **set** an env var rather than forward
 one. It stores secrets in the OS keyring over DBus; a container has no Secret
@@ -131,19 +141,7 @@ top. Package names and config paths below are the starting point for the work,
 **not verified facts**: confirm each against upstream when implementing, since a
 wrong package name in the Dockerfile fails silently (`|| true`).
 
-### 1. Aider
-
-- [ ] `aider` — the most-installed OSS CLI pair programmer.
-- Install: Python (`aider-chat`), not npm. The base image has `python3` but no
-  `pip`/`pipx`/`uv` — this adapter needs an image change, and is the reason it is
-  worth doing first: it establishes the non-npm bootstrap path the Python agents
-  below all reuse.
-- Env: `OPENAI_API_KEY`, `ANTHROPIC_API_KEY`, `GEMINI_API_KEY`, `AIDER_MODEL`.
-- Config/state: `~/.aider.conf.yml`, `~/.aider/` — under HOME, so persistence works.
-- Note: aider drives git directly (auto-commits). Worth testing under `--worktree`,
-  where `.git` is a pointer file into the bind-mounted parent repo.
-
-### 2. GitHub Copilot CLI
+### 1. GitHub Copilot CLI
 
 - [ ] `copilot` — the largest distribution of any agent here.
 - Install: npm (`@github/copilot`); verify the current package name.
@@ -154,7 +152,7 @@ wrong package name in the Dockerfile fails silently (`|| true`).
   reach far beyond the workspace. Forward-if-set is the existing convention, but
   this one deserves an explicit warning in the command's help text.
 
-### 3. Cursor CLI
+### 2. Cursor CLI
 
 - [ ] `cursor-agent`.
 - Install: upstream install script (`curl … | bash`), like the claude bootstrap;
@@ -164,7 +162,7 @@ wrong package name in the Dockerfile fails silently (`|| true`).
   under `--allow` (the egress allowlist), whose baseline covers package registries
   but not necessarily the vendor's download host.
 
-### 4. Qwen Code
+### 3. Qwen Code
 
 - [ ] `qwen`.
 - Install: npm (`@qwen-code/qwen-code`).
@@ -172,19 +170,19 @@ wrong package name in the Dockerfile fails silently (`|| true`).
   `DASHSCOPE_API_KEY`.
 - Note: a Gemini CLI fork, so the `gemini` adapter is the closest template.
 
-### 5. Amp
+### 4. Amp
 
 - [ ] `amp` (Sourcegraph).
 - Install: npm (`@sourcegraph/amp`).
 - Env: `AMP_API_KEY`, `AMP_URL`.
 
-### 6. Continue CLI
+### 5. Continue CLI
 
 - [ ] `cn`.
 - Install: npm (`@continuedev/cli`).
 - Env: `CONTINUE_API_KEY` plus provider keys; config `~/.continue`.
 
-### 7. OpenHands CLI
+### 6. OpenHands CLI
 
 - [ ] `openhands`.
 - Install: Python — blocked on the same image work as aider.
@@ -194,13 +192,13 @@ wrong package name in the Dockerfile fails silently (`|| true`).
   only meaningful for the local/CLI-only runtime mode. Confirm that mode exists
   and works before starting.
 
-### 8. Droid
+### 7. Droid
 
 - [ ] `droid` (Factory).
 - Install: upstream install script.
 - Env: `FACTORY_API_KEY`.
 
-### 9. Plandex
+### 8. Plandex
 
 - [ ] `plandex` / `pdx`.
 - Install: install script or Go binary.
