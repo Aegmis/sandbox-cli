@@ -4,6 +4,7 @@ package cli
 import (
 	"fmt"
 	"os"
+	"path/filepath"
 
 	"github.com/spf13/cobra"
 
@@ -129,6 +130,21 @@ func newSession(rf *runFlags) (*sandbox.Session, sandbox.Options, error) {
 	}
 	if gitDir, ok := worktree.GitCommonDir(config.ExpandTilde(projectDir)); ok {
 		opts.ExtraMounts = append(opts.ExtraMounts, gitDir+":"+gitDir+":rw")
+
+		// The worktree is mounted a second time at its own host path, not only at
+		// /workspace. The parent repo records each linked worktree by absolute path
+		// and treats a record whose path has vanished as a deleted worktree, so
+		// inside the container every one of them reads as "prunable: gitdir file
+		// points to non-existent location" — the host paths simply aren't there.
+		// The parent .git above is mounted read-write so the agent can commit, which
+		// means a `git worktree prune` (or the one `git gc` runs for itself) reaches
+		// out of the container and deletes the user's entire worktree registry,
+		// orphaning every worktree including the one it is running in. Making the
+		// path resolve is one extra bind of a directory that is already mounted, so
+		// it grants no reach the container did not have a moment ago.
+		if wt, err := filepath.Abs(config.ExpandTilde(projectDir)); err == nil {
+			opts.ExtraMounts = append(opts.ExtraMounts, wt+":"+wt+":rw")
+		}
 	}
 
 	// Display only: the live gauge and the post-run summary show which branch the
