@@ -1,6 +1,9 @@
 package cli
 
 import (
+	"errors"
+	"os"
+	"os/exec"
 	"reflect"
 	"strings"
 	"testing"
@@ -144,6 +147,53 @@ func TestNpmAgentBootstrap(t *testing.T) {
 		if !strings.Contains(got[2], want) {
 			t.Errorf("script does not contain %q:\n%s", want, got[2])
 		}
+	}
+}
+
+// TestAgentBootstrapScriptRuns executes the generated script for real, which is
+// the only way to catch a quoting bug in it — the Go tests above only inspect
+// text. A missing agent must produce the diagnostic and exit 127 rather than
+// sh's bare "not found", and a present one must be exec'd with its args intact.
+func TestAgentBootstrapScriptRuns(t *testing.T) {
+	if _, err := exec.LookPath("sh"); err != nil {
+		t.Skip("no sh available")
+	}
+	home := t.TempDir()
+
+	run := func(argv []string, extra ...string) (string, int) {
+		t.Helper()
+		c := exec.Command(argv[0], append(argv[1:], extra...)...)
+		c.Env = append(os.Environ(), "HOME="+home)
+		out, err := c.CombinedOutput()
+		code := 0
+		var ee *exec.ExitError
+		if errors.As(err, &ee) {
+			code = ee.ExitCode()
+		}
+		return string(out), code
+	}
+
+	// An agent that cannot be installed: the bootstrap must say so and exit 127,
+	// so the failure is legible instead of looking like the agent crashed.
+	out, code := run(agentBootstrap("definitely-not-a-real-agent", "false"))
+	if code != 127 {
+		t.Errorf("missing agent: exit = %d, want 127\n%s", code, out)
+	}
+	if !strings.Contains(out, "is not installed") || !strings.Contains(out, "--allow") {
+		t.Errorf("missing agent: unhelpful diagnostic:\n%s", out)
+	}
+
+	// An agent already on PATH must be exec'd, with the install skipped and the
+	// guest args passed through untouched — including one containing spaces.
+	out, code = run(agentBootstrap("echo", "exit 1"), "hello", "two words")
+	if code != 0 {
+		t.Errorf("present agent: exit = %d, want 0\n%s", code, out)
+	}
+	if strings.TrimSpace(out) != "hello two words" {
+		t.Errorf("present agent: args mangled, got %q", strings.TrimSpace(out))
+	}
+	if strings.Contains(out, "installing") {
+		t.Errorf("present agent: should not have tried to install:\n%s", out)
 	}
 }
 

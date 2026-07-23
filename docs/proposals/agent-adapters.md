@@ -3,7 +3,7 @@
 **Status:** four adapters shipped (`claude`, `codex`, `gemini`, `opencode`); the
 rest below are a TODO list, ordered most-popular first.
 **Code required per adapter:** one file in `internal/cli`, one line in
-`root.go`, one line in the base image Dockerfile.
+`root.go`. No image change — see "Why new agents are not baked".
 
 ## What an adapter is
 
@@ -35,10 +35,10 @@ The shared contract is pinned by `TestAgentWrappersShareTheContract`
 - [ ] `DisableFlagParsing: true` so agent flags forward verbatim (see the two
       flag-parsing modes in `CLAUDE.md`).
 - [ ] Register in `NewRootCmd` (`internal/cli/root.go`).
-- [ ] Add the package to `internal/image/assets/Dockerfile`, one `RUN npm
-      install -g …|| true` per agent — grouping them makes one unavailable
-      package take down every other agent in that layer. Editing the Dockerfile
-      changes the content-addressed image tag, so users rebuild automatically.
+- [ ] **Do not add it to the Dockerfile.** `agentBootstrap` installs the agent
+      into the persisted HOME on first use, so an adapter nobody runs costs the
+      image nothing. Baking is reserved for the four agents already there; see
+      "Why new agents are not baked" below.
 - [ ] Add the agent to the wrapper table in `wrapper_test.go`.
 - [ ] Document it: `README.md` (agent list, persisted-login table), `docs/GUIDE.md`.
 - [ ] Check whether the agent has a status-line hook (see the table below). If it
@@ -87,6 +87,28 @@ Claude alone carries one further extra: the shared host history for the current
 project. That is a Claude-specific integration, not part of the adapter contract;
 a new adapter should stay in the plain shape unless the agent has a genuine
 equivalent.
+
+### Why new agents are not baked
+
+Measured July 2026, unpacked sizes from the npm registry: `@google/gemini-cli`
+93 MiB, `@qwen-code/qwen-code` 84 MiB, `@continuedev/cli` 62 MiB. Several others
+(`@github/copilot`, `@charmland/crush`) report near-zero because they are stubs
+that download a platform binary during install — their real footprint is larger
+than the registry number, not smaller. Aider and OpenHands are Python, so baking
+them also means adding pip/pipx or uv to the image.
+
+Baking the whole queue would add somewhere between several hundred megabytes and
+a gigabyte to a base image every user builds, almost all of it for agents any
+given user will never run. So new adapters are installed on first use into
+`~/.config/sandbox/agents/<agent>/.local`, which already persists across
+containers. An adapter nobody runs costs nothing but its Go file.
+
+The trade, stated honestly: the first launch of each agent waits for a download
+and needs network at that moment. `agentBootstrap` announces the install rather
+than appearing to hang, and exits 127 with a pointed message when it fails —
+including a reminder that under `--allow` the install host has to be on the
+allowlist. Vendor install scripts (Cursor, Droid) are the ones most likely to
+need a domain adding.
 
 ## The queue
 

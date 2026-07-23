@@ -77,10 +77,13 @@ in `finishAgentCmd(cmd, rf, "<agent>")` (`agents.go`), which adds the shared san
 `npmAgentBootstrap(bin, pkg)`, which installs into the persisted HOME on first run.
 
 `TestAgentWrappersShareTheContract` pins that shape for every wrapper. Adding an agent means: a file
-in `internal/cli`, a line in `NewRootCmd`, its own `RUN npm install -g` layer in
-`internal/image/assets/Dockerfile` (one per agent, so one bad package doesn't take the others down),
-and an entry in the test table. The queue of agents still to adapt, ordered by popularity, plus the
-full checklist, is in `docs/proposals/agent-adapters.md`.
+in `internal/cli`, a line in `NewRootCmd`, and an entry in the test table — **no Dockerfile change**.
+New agents are installed lazily by `agentBootstrap` on first use, not baked into the base image:
+baking every adapter would put hundreds of megabytes in front of every user for agents most of them
+will never run, while a lazily-installed adapter costs the image nothing. The four the image already
+carries (claude, codex, gemini, opencode) stay baked so today's users see no change. The queue of
+agents still to adapt, ordered by popularity, plus the full checklist, is in
+`docs/proposals/agent-adapters.md`.
 
 ### The memory/CPU status line
 
