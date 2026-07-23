@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/spf13/cobra"
 
@@ -42,6 +43,7 @@ type runFlags struct {
 	git         bool
 	runtime     string
 	share       bool
+	paste       bool
 
 	// Auth persistence (agent wrappers only). persistName is the sandbox-owned
 	// host state dir name (e.g. "claude") mounted as the agent's HOME.
@@ -171,6 +173,26 @@ func newSession(rf *runFlags) (*sandbox.Session, sandbox.Options, error) {
 		fmt.Fprintf(os.Stderr, "sandbox-cli: sharing %s at %s\n", dir, sharedTarget)
 	}
 
+	// --paste: make an image path pasted into the agent resolve, by mounting the
+	// directories such paths point into read-only at their own host paths. Opt-in
+	// and announced, because it is the widest reach the sandbox will grant short
+	// of an explicit --mount: everything in those directories becomes readable,
+	// not only the file that was pasted.
+	if rf.paste {
+		home, herr := os.UserHomeDir()
+		if herr != nil {
+			return nil, sandbox.Options{}, fmt.Errorf("--paste: cannot determine your home directory: %w", herr)
+		}
+		mounts, dirs := pasteMounts(home)
+		if len(mounts) == 0 {
+			fmt.Fprintf(os.Stderr, "sandbox-cli: --paste: none of %s exist under %s; mount the directory you paste from with --mount DIR:DIR:ro\n",
+				strings.Join(pasteDirNames, ", "), home)
+		} else {
+			opts.ExtraMounts = append(opts.ExtraMounts, mounts...)
+			fmt.Fprintf(os.Stderr, "sandbox-cli: --paste: %s mounted read-only at their host paths\n", strings.Join(dirs, " "))
+		}
+	}
+
 	// Persist agent login in a dedicated, sandbox-owned host dir mounted as the
 	// agent's whole HOME, so login survives the ephemeral container.
 	if rf.persistName != "" && !rf.noPersistAuth {
@@ -227,6 +249,7 @@ func addRunFlags(cmd *cobra.Command, rf *runFlags) {
 	f.BoolVar(&rf.git, "git", false, "forward host git identity and trust the workspace so git commits just work in-container")
 	f.StringVar(&rf.runtime, "runtime", "", "OCI runtime for stronger isolation, e.g. kata-runtime (microVM) or runsc (gVisor); must be registered with docker")
 	f.BoolVar(&rf.share, "share", false, "mount the shared dir (~/.config/sandbox/shared) at /shared so agents in different projects can exchange files")
+	f.BoolVar(&rf.paste, "paste", false, "mount ~/Desktop, ~/Downloads and ~/Pictures read-only at their host paths so an image path pasted into the agent resolves")
 
 	// Flags before -- are ours; everything after -- is the guest command verbatim.
 	f.SetInterspersed(false)

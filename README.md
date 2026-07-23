@@ -322,6 +322,7 @@ sandbox-dk0gtrd15s2g  412MiB / 7.6GiB   82.00%  24
 | `--secret` | Brokered credential `NAME=file:PATH \| cmd:COMMAND \| env:VAR`, resolved at run time and kept off the command line (repeatable) |
 | `--worktree` | Run in a git worktree for `BRANCH` (created if absent) — parallel per-branch agents |
 | `--share` | Mount the shared dir (`~/.config/sandbox/shared`) at `/shared` so agents in different projects can exchange files |
+| `--paste` | Mount `~/Desktop`, `~/Downloads` and `~/Pictures` read-only at their host paths, so an image path pasted into the agent resolves inside the container |
 | `--git` | Forward host git identity and trust the workspace so `git` commits just work in-container |
 | `--host-gateway` | Map `host.docker.internal` to the host (reach host MCP servers; needed on Linux) |
 | `--add-host` | Extra `HOST:IP` mapping passed to docker (repeatable) |

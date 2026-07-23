@@ -521,6 +521,7 @@ Common flags (work on `run` and on every agent wrapper):
 | `--secret NAME=file:\|cmd:\|env:...` | Brokered credential (repeatable) |
 | `--worktree BRANCH` | Run in a git worktree for BRANCH |
 | `--share` | Mount `~/.config/sandbox/shared` at `/shared` (exchange files between sandboxes) |
+| `--paste` | Mount `~/Desktop`, `~/Downloads`, `~/Pictures` read-only at their host paths (pasted image paths resolve) |
 | `--git` | Forward git identity + trust the workspace |
 | `--host-gateway` / `--add-host H:IP` | Reach host services / add a host mapping |
 | `--memory 2g` / `--cpus 1.5` | Resource limits |
@@ -560,6 +561,31 @@ Ghostty. For a code block, add the rectangular-selection modifier (`Cmd+Option`
 in iTerm2, `Ctrl+Alt` in Ghostty) so you get the code columns without the
 surrounding frame. None of this involves the sandbox — it behaves the same way
 running the agent directly on the host.
+
+**Pasting an image into the agent does nothing** — on the host, pasting a copied
+or dragged image file works because your terminal inserts its absolute path and
+the agent reads it. The path is all that crosses into the sandbox, and
+`/Users/you/Desktop/shot.png` names nothing in a container whose only host mount
+is your project, so the agent reports a missing file. Pass `--paste` to mount
+`~/Desktop`, `~/Downloads` and `~/Pictures` read-only *at their own host paths*,
+which makes the pasted path resolve to the same bytes it names on the host:
+
+```sh
+sandbox-cli claude --paste
+```
+
+It is opt-in because it is genuinely wider reach — the agent can then read
+everything in those three directories, not only the file you pasted. For one
+directory elsewhere, mount it yourself at the same path:
+`--mount ~/shots:/Users/you/shots:ro` (both sides must be the host path). The
+narrowest option needs no flag at all: copy the image into the project first,
+where it is already mounted, and paste `./shot.png`.
+
+An image copied as *raw bits* rather than as a file — a browser's "Copy Image",
+a screenshot sent straight to the clipboard — is a different problem and `--paste`
+does not help. There is no path involved: the agent reads the OS clipboard
+directly, and the container has no clipboard to read (see the next two entries).
+Save it to a file on the host first.
 
 **Claude's `/copy` doesn't reach my clipboard** — `/copy` is Claude Code's own
 command, and it shells out to a platform clipboard tool (`pbcopy` on macOS,

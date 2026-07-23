@@ -58,6 +58,9 @@ func newClaudeCmd() *cobra.Command {
 			"by default, so host session IDs resolve and a host session can be --resume'd\n" +
 			"inside the container (and vice versa). Pass --no-sync to keep the sandbox's\n" +
 			"conversation history separate from the host's.\n\n" +
+			"Pasting an image gives Claude only its host path, which does not exist in\n" +
+			"the container. Pass --paste to mount ~/Desktop, ~/Downloads and ~/Pictures\n" +
+			"read-only at their host paths so that path resolves.\n\n" +
 			"Forwards ANTHROPIC_API_KEY and related variables from your host environment\n" +
 			"only if they are set. No other host files are mounted unless you pass --mount.",
 		Example: "  sandbox-cli claude\n" +
