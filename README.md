@@ -670,10 +670,17 @@ snapshot that will age — check their docs before choosing.
 ## Development
 
 ```sh
+make build             # -> bin/sandbox-cli
+make install           # go install ./cmd/sandbox-cli
 make test              # unit tests (no Docker)
 make test-integration  # end-to-end tests (requires Docker)
+make fmt               # gofmt -w .
 make snapshot          # dry-run release into ./dist (needs goreleaser)
 ```
+
+See [`docs/DEVELOPMENT.md`](docs/DEVELOPMENT.md) for the full workflow — every
+make target, single-test commands, release engineering, and the macOS install
+gotchas (PATH shadowing and re-signing after `cp`).
 
 Releases are built by GoReleaser (`.goreleaser.yaml`) and published by CI when a
 version tag is pushed — see `.github/workflows/release.yml`.
