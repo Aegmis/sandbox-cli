@@ -89,12 +89,10 @@ func newClaudeCmd() *cobra.Command {
 			return runWrapper(cmd, rf, args, agentCmd, claudeEnvAllow, afterParse)
 		},
 	}
-	addRunFlags(cmd, rf)
-	// Persist Claude's login in a sandbox-owned host dir (~/.config/sandbox/
+	// Persists Claude's login in a sandbox-owned host dir (~/.config/sandbox/
 	// agents/claude) mounted as the container HOME, so you log in once. Opt out
 	// with --no-persist-auth.
-	rf.persistName = "claude"
-	cmd.Flags().BoolVar(&rf.noPersistAuth, "no-persist-auth", false, "do not persist the agent login across runs")
+	finishAgentCmd(cmd, rf, "claude")
 	cmd.Flags().BoolVar(&rf.noStatusline, "no-statusline", false, "don't add the sandbox memory/CPU status line to Claude")
 	cmd.Flags().BoolVar(&rf.noSync, "no-sync", false, "don't mount your host Claude history for this repo (keeps sandbox sessions separate)")
 	return cmd

@@ -1,6 +1,8 @@
 # sandbox-cli
 
-Run AI coding agents (Claude Code, Codex CLI) — or any command — inside a
+Run AI coding agents (Claude Code, Codex, Gemini, OpenCode, Cline, Goose, Crush,
+Aider, Copilot CLI, Cursor, Qwen, Amp, Continue, OpenHands, Droid) — or any
+command — inside a
 **disposable, isolated Docker container**. Only the project you choose is mounted
 at `/workspace`; `HOME` is a fake, ephemeral directory. A mistaken `rm -rf ~` or
 a prompt-injected command can't touch the rest of your machine.
@@ -10,9 +12,12 @@ a prompt-injected command can't touch the rest of your machine.
   ~/projects/myapp  ── bind ──►  /workspace   (the only host-connected path)
   ~/.ssh ~/.aws ~/  ── NOT mounted            HOME=/sandbox/home  (ephemeral)
 
-  (the claude/codex wrappers additionally mount a sandbox-owned agent home and,
+  (the agent wrappers additionally mount a sandbox-owned agent home and,
    for claude, your history for this one project — both opt-out; see below)
 ```
+
+> **Per-agent setup — prerequisites, how to log in without a browser, and what
+> each agent needs under `--allow` — is in the [Agent reference](docs/AGENTS.md).**
 
 > New here? Start with the **[User Guide](docs/GUIDE.md)** — setup, everyday
 > usage, and a friendly tour of every feature.
@@ -104,6 +109,8 @@ sandbox-cli run --dry-run -- npm test
 ANTHROPIC_API_KEY=... sandbox-cli claude
 ANTHROPIC_API_KEY=... sandbox-cli claude --dangerously-skip-permissions
 OPENAI_API_KEY=...    sandbox-cli codex exec 'run the tests'
+GEMINI_API_KEY=...    sandbox-cli gemini --yolo
+ANTHROPIC_API_KEY=... sandbox-cli opencode run 'run the tests'
 
 # Scaffold a project config
 sandbox-cli init
@@ -111,8 +118,8 @@ sandbox-cli init
 
 ### Passing flags to the agent
 
-For `sandbox-cli claude` / `sandbox-cli codex`, **everything you type is forwarded to the
-agent** — so `sandbox-cli claude --dangerously-skip-permissions` just works, and there
+For every agent wrapper (`claude`, `codex`, `gemini`, `opencode`, `cline`, …),
+**everything you type is forwarded to the agent** — so `sandbox-cli claude --dangerously-skip-permissions` just works, and there
 are no collisions with sandbox's own flags.
 
 The rule is one sentence: **a leading run of sandbox long-flags is consumed by
@@ -151,13 +158,26 @@ sandbox-cli claude --worktree feature-a --dry-run -- -p "implement A"
 
 ### Persistent agent login
 
-`sandbox-cli claude` / `sandbox-cli codex` **persist the agent's login by default**, so you
+Every agent wrapper **persists the agent's login by default**, so you
 authenticate once and it survives the throwaway containers. A dedicated,
 sandbox-owned host directory is bind-mounted as the agent's whole home:
 
 ```
-~/.config/sandbox/agents/claude  ->  /sandbox/home   (sandbox-cli claude)
-~/.config/sandbox/agents/codex   ->  /sandbox/home   (sandbox-cli codex)
+~/.config/sandbox/agents/claude    ->  /sandbox/home   (sandbox-cli claude)
+~/.config/sandbox/agents/codex     ->  /sandbox/home   (sandbox-cli codex)
+~/.config/sandbox/agents/gemini    ->  /sandbox/home   (sandbox-cli gemini)
+~/.config/sandbox/agents/opencode  ->  /sandbox/home   (sandbox-cli opencode)
+~/.config/sandbox/agents/cline     ->  /sandbox/home   (sandbox-cli cline)
+~/.config/sandbox/agents/goose     ->  /sandbox/home   (sandbox-cli goose)
+~/.config/sandbox/agents/crush     ->  /sandbox/home   (sandbox-cli crush)
+~/.config/sandbox/agents/aider     ->  /sandbox/home   (sandbox-cli aider)
+~/.config/sandbox/agents/copilot   ->  /sandbox/home   (sandbox-cli copilot)
+~/.config/sandbox/agents/cursor    ->  /sandbox/home   (sandbox-cli cursor)
+~/.config/sandbox/agents/qwen      ->  /sandbox/home   (sandbox-cli qwen)
+~/.config/sandbox/agents/amp       ->  /sandbox/home   (sandbox-cli amp)
+~/.config/sandbox/agents/continue  ->  /sandbox/home   (sandbox-cli continue)
+~/.config/sandbox/agents/openhands ->  /sandbox/home   (sandbox-cli openhands)
+~/.config/sandbox/agents/droid     ->  /sandbox/home   (sandbox-cli droid)
 ```
 
 The whole home is persisted (not just `~/.claude`) because agents keep their
@@ -279,7 +299,7 @@ CONTAINER             MEM                CPU     PIDS
 sandbox-dk0gtrd15s2g  412MiB / 7.6GiB   82.00%  24
 ```
 
-### Common flags (run / claude / codex)
+### Common flags (run and every agent wrapper)
 
 | Flag | Meaning |
 |---|---|
@@ -301,6 +321,7 @@ sandbox-dk0gtrd15s2g  412MiB / 7.6GiB   82.00%  24
 | `--cache` | Persist package-manager caches (npm/pip/cargo/go) in named volumes across runs |
 | `--secret` | Brokered credential `NAME=file:PATH \| cmd:COMMAND \| env:VAR`, resolved at run time and kept off the command line (repeatable) |
 | `--worktree` | Run in a git worktree for `BRANCH` (created if absent) — parallel per-branch agents |
+| `--share` | Mount the shared dir (`~/.config/sandbox/shared`) at `/shared` so agents in different projects can exchange files |
 | `--git` | Forward host git identity and trust the workspace so `git` commits just work in-container |
 | `--host-gateway` | Map `host.docker.internal` to the host (reach host MCP servers; needed on Linux) |
 | `--add-host` | Extra `HOST:IP` mapping passed to docker (repeatable) |
@@ -422,6 +443,48 @@ A few more things worth knowing:
   give each agent its own.
 - **Requires git** — it's the only feature that does.
 
+## Sharing files between sandboxes
+
+Two sandboxes can't see each other. Each one has its own project at `/workspace`
+and nothing else — which is the point, but it leaves no way to hand something
+over when a UI agent finishes an API contract the backend agent needs.
+
+`--share` mounts one host directory at `/shared` in every sandbox that asks for
+it:
+
+```sh
+sandbox-cli claude --share --project ~/web-ui     # writes /shared/openapi.yaml
+sandbox-cli claude --share --project ~/backend    # reads it
+```
+
+Then just say so in the prompt — there's nothing else to learn:
+
+> "Write the API contract to `/shared/openapi.yaml`"
+
+> "Read `/shared/openapi.yaml` and implement the endpoints"
+
+It works the same across git worktrees of one project, or across two unrelated
+projects — the directory is the same for all of them. On the host it lives at
+`~/.config/sandbox/shared`, so you can open it in an editor, diff it, or drop
+files in yourself. It's created on first use with a README explaining what it is.
+
+A few things worth knowing:
+
+- **Opt-in.** A channel between projects is exactly the reach the sandbox refuses
+  by default, so it only exists when you pass the flag.
+- **Read-write for everyone using it.** There's no per-sandbox permission split;
+  treat it as scratch space with one owner per file. For a one-way channel,
+  mount it yourself instead: `--mount ~/.config/sandbox/shared:/shared:ro`.
+- **Not versioned.** You get the current file, not its history. If the contract
+  starts changing and you want to see what moved, `git init --bare` a repo inside
+  `/shared` and push to it from both sides. For the fuller version of that idea —
+  immutable version tags and a `contracts.lock` in the consuming repo, so a
+  handoff becomes a pinned dependency instead of a shared mutable file — see
+  [docs/proposals/pinned-contracts.md](docs/proposals/pinned-contracts.md)
+  (proposed; needs no code, works with `--share` today).
+- **Files, not messages.** The agents don't get notified; the reader sees whatever
+  is on disk when it looks.
+
 ## Stronger isolation (microVM / gVisor)
 
 By default the container is a normal (shared-kernel) Docker container. If your
@@ -465,8 +528,8 @@ platforms; the differences are all about the boundary the host can provide.
 
 | Capability | macOS (Docker Desktop) | Linux (native Docker) | Windows (Docker Desktop / WSL2) |
 |---|---|---|---|
-| Core: `run` / `claude` / `codex`, mounts, env, hardening, metrics | ✅ | ✅ | ✅ |
-| `--cache`, `--secret`, `--worktree`, `--git` | ✅ | ✅ | ✅ |
+| Core: `run` + the agent wrappers, mounts, env, hardening, metrics | ✅ | ✅ | ✅ |
+| `--cache`, `--secret`, `--worktree`, `--git`, `--share` | ✅ | ✅ | ✅ |
 | Egress allowlist (`--allow`) | ✅ ¹ | ✅ | ✅ ¹ |
 | `--host-gateway` | auto ² | ✅ (needed) | auto ² |
 | `/workspace` file ownership | virtualized to you | container uid ³ | virtualized to you |
@@ -531,7 +594,7 @@ secrets:              # broker: resolve at run time, forward by name (never on t
 
 - **Only `/workspace` is host-connected and writable** for `sandbox-cli run`.
   `HOME`, `/etc`, `/` inside the container are ephemeral and destroyed on exit
-  (`--rm`). The `claude` / `codex` wrappers add two more host paths by default,
+  (`--rm`). The agent wrappers add two more host paths by default,
   both scoped and both opt-out: the sandbox-owned agent home
   (`~/.config/sandbox/agents/<agent>`, `--no-persist-auth`) and your Claude
   history for the current project (`--no-sync`). When the workspace is a git
@@ -540,8 +603,8 @@ secrets:              # broker: resolve at run time, forward by name (never on t
 - **The host home is never mounted.** sandbox refuses to mount `/`, your home
   directory, or any ancestor of it as the workspace.
 - **Default-deny credentials.** Nothing from your host env crosses the boundary
-  unless you opt in via `env_allow` / `--env-allow` / `--env`. `claude`/`codex`
-  ship a suggested allowlist (e.g. `ANTHROPIC_API_KEY`) applied only if the value
+  unless you opt in via `env_allow` / `--env-allow` / `--env`. Each agent wrapper
+  ships a suggested allowlist (e.g. `ANTHROPIC_API_KEY`) applied only if the value
   is set. For OAuth-file logins, mount just the agent's own dir, e.g.
   `--mount ~/.claude:/sandbox/home/.claude:rw`.
 - **Credential broker.** For secrets you'd rather not put on the command line or

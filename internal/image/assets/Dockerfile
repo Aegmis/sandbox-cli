@@ -1,8 +1,8 @@
 # sandbox-base: the default disposable execution environment.
 #
 # node:*-bookworm-slim is multi-arch, so on Apple Silicon this resolves to the
-# arm64 variant automatically. Node is present because Claude Code and Codex are
-# distributed as npm packages.
+# arm64 variant automatically. Node is present because every agent wrapped here
+# (Claude Code, Codex, Gemini CLI, OpenCode) ships as an npm package.
 FROM node:22-bookworm-slim
 
 # Common dev/agent tooling.
@@ -18,13 +18,23 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
       python3 \
       build-essential \
       iptables \
+      # Goose's installer extracts a .tar.bz2, and GNU tar shells out to bzip2
+      # for that. ~100KB, and without it `sandbox-cli goose` cannot install.
+      bzip2 \
     && rm -rf /var/lib/apt/lists/*
 
-# Pre-install the agents so `sandbox-cli codex` and an offline `sandbox-cli claude`
-# work out of the box. Kept best-effort so an upstream hiccup doesn't break the
-# build. The claude wrapper prefers a self-updating install in the persisted HOME
-# (~/.local/bin, ahead on PATH); this baked copy is the offline fallback.
-RUN npm install -g @anthropic-ai/claude-code @openai/codex || true
+# Pre-install the agents so `sandbox-cli codex` / `gemini` / `opencode` and an
+# offline `sandbox-cli claude` work out of the box. Kept best-effort so an
+# upstream hiccup doesn't break the build. The claude wrapper prefers a
+# self-updating install in the persisted HOME (~/.local/bin, ahead on PATH); this
+# baked copy is the offline fallback. The other wrappers fall the other way: if a
+# package is missing here they install it into the persisted HOME on first run.
+# Installed one package per layer so a single unavailable agent doesn't take the
+# rest down with it — `npm install -g a b c` is all-or-nothing.
+RUN npm install -g @anthropic-ai/claude-code || true
+RUN npm install -g @openai/codex || true
+RUN npm install -g @google/gemini-cli || true
+RUN npm install -g opencode-ai || true
 
 # Live resource status line for Claude Code: reads the container's own cgroup v2
 # memory/CPU and prints one line. Claude runs it via a managed-settings.json that
@@ -135,6 +145,69 @@ fi
 printf '\033[2m%s\033[0m\n' "$line"
 SL
 RUN chmod +x /usr/local/bin/sandbox-statusline
+
+# Clipboard bridge. There is no clipboard inside the sandbox: no X or Wayland
+# display, and pbcopy is a macOS binary that cannot run on Linux at all. The one
+# channel that does reach the host is the terminal — OSC 52 is an escape sequence
+# the emulator reads off the tty and puts on the real clipboard, so it crosses the
+# container boundary as ordinary output bytes, no mount and no extra reach.
+#
+# Installed under the names tools actually look for (pbcopy, xclip, xsel,
+# wl-copy), so anything shelling out to "the clipboard" — Claude Code's /copy, for
+# instance — finds one instead of silently failing.
+RUN cat > /usr/local/bin/sandbox-clipboard <<'CB'
+#!/usr/bin/env bash
+set -euo pipefail
+
+# Reading the host clipboard is deliberately not implemented. OSC 52 can request
+# it, but the reply has to be parsed back off the tty in raw mode, and terminals
+# gate reads behind a prompt or refuse outright — so it fails in ways a caller
+# cannot tell apart from an empty clipboard. Failing loudly is more honest.
+for arg in "$@"; do
+  case "$arg" in
+    -o|-out|--output)
+      echo "${0##*/}: reading the host clipboard is not supported inside the sandbox" >&2
+      exit 1
+      ;;
+  esac
+done
+
+# Text arrives on stdin (pbcopy, xclip, xsel) or as arguments (wl-copy foo).
+# Prefer stdin whenever it is not a terminal; reading it with nothing piped in
+# would hang waiting for input that never arrives.
+if [ ! -t 0 ]; then
+  payload=$(base64 -w0)
+else
+  text=""
+  for arg in "$@"; do
+    case "$arg" in
+      -*) continue ;;                        # flags: -selection, --clipboard, -b
+      *)  text="${text:+$text }$arg" ;;
+    esac
+  done
+  payload=$(printf '%s' "$text" | base64 -w0)
+fi
+
+# The sequence goes to the controlling terminal, never stdout: the caller is
+# usually capturing stdout, and an escape sequence in captured output is a bug.
+# Tested by opening it, not with [ -w ] — the device node exists and is writable
+# by mode even when there is no controlling terminal to attach to, so the test
+# passes and the open then fails with ENXIO.
+if ! { exec 3>/dev/tty; } 2>/dev/null; then
+  if [ -t 1 ]; then
+    exec 3>&1          # no controlling terminal, but stdout is one
+  else
+    echo "${0##*/}: no terminal to write the clipboard to (is the sandbox running with a TTY?)" >&2
+    exit 1
+  fi
+fi
+printf '\033]52;c;%s\a' "$payload" >&3
+CB
+RUN chmod +x /usr/local/bin/sandbox-clipboard \
+    && ln -s sandbox-clipboard /usr/local/bin/pbcopy \
+    && ln -s sandbox-clipboard /usr/local/bin/xclip \
+    && ln -s sandbox-clipboard /usr/local/bin/xsel \
+    && ln -s sandbox-clipboard /usr/local/bin/wl-copy
 
 # Egress allowlist support (used only when sandbox-cli runs with `network:
 # allowlist` / `--allow`). sandbox-egress-setup programs a default-deny OUTPUT

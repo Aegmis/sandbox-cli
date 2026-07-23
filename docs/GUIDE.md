@@ -83,8 +83,10 @@ cd ~/code/my-app
 # 2. Run Claude Code in the sandbox (logs you in the first time)
 sandbox-cli claude
 
-# ...or Codex
+# ...or another agent
 sandbox-cli codex
+sandbox-cli gemini
+sandbox-cli opencode
 
 # 3. Or run any command in the sandbox
 sandbox-cli run -- npm test
@@ -319,6 +321,28 @@ use `--worktree`; run the agent in a normal checkout instead.
   collide. One branch per agent.
 - Commit before you start: an agent can only build on what's in HEAD.
 
+### Handing files between two sandboxes
+
+Two sandboxes are blind to each other by design — each sees its own project and
+nothing more. When one agent produces something another needs (an API contract, a
+schema, a generated client), `--share` gives them one directory in common:
+
+```sh
+sandbox-cli claude --share --project ~/web-ui     # produces /shared/openapi.yaml
+sandbox-cli claude --share --project ~/backend    # consumes it
+```
+
+Then say it in the prompt: *"write the API contract to `/shared/openapi.yaml`"*,
+and on the other side *"read `/shared/openapi.yaml` and implement it"*. The same
+directory shows up for every sandbox using the flag — different worktrees,
+different projects, doesn't matter. It lives on the host at
+`~/.config/sandbox/shared`, so you can inspect and edit it like any folder.
+
+It's read-write for every sandbox that mounts it and keeps no history. For a
+one-way channel, mount it by hand instead
+(`--mount ~/.config/sandbox/shared:/shared:ro` on the consumer). For history,
+`git init --bare` a repo inside it and push from both sides.
+
 ### Passing Claude's own flags
 
 The wrappers forward everything they don't recognize, so Claude's flags work
@@ -396,11 +420,24 @@ Non-interactive runs show a live memory/CPU gauge; every run prints a peak-usage
 summary at the end. `sandbox-cli stats` shows a live table of running sandboxes.
 Disable with `--no-metrics`.
 
-### Works with both Claude and Codex
-`sandbox-cli claude` and `sandbox-cli codex` wrap each agent, forward its flags
-untouched (so `--dangerously-skip-permissions` just works), and **persist each
-agent's login** in a sandbox-owned folder so you only log in once — kept separate
-from your real `~/.claude`.
+During an interactive agent session, only `claude` shows the gauge on screen — it
+has a `statusLine` hook sandbox-cli can render into (`--no-statusline` turns it
+off). `gemini`, `opencode` and `codex` have no such hook, so for those run
+`sandbox-cli stats` in a second terminal.
+
+### Works with Claude, Codex, Gemini, OpenCode and Cline
+`sandbox-cli claude` / `codex` / `gemini` / `opencode` / `cline` wrap each agent, forward
+its flags untouched (so `--dangerously-skip-permissions` just works), and
+**persist each agent's login** in a sandbox-owned folder — one per agent — so you
+only log in once, kept separate from your real `~/.claude`, `~/.gemini`, etc.
+
+**Setting one up:** prerequisites, the login flow for each (none of them need a
+browser inside the container), what the sandbox sets for you, and the extra
+`--allow` domains are all in the **[Agent reference](AGENTS.md)**.
+
+Adding another agent is a small, well-defined piece of work; the queue and the
+per-adapter checklist live in
+[docs/proposals/agent-adapters.md](proposals/agent-adapters.md).
 
 ---
 
@@ -451,6 +488,19 @@ Run `sandbox-cli config show` to see the effective, merged config.
 | `sandbox-cli run -- <cmd>` | Run any command in the sandbox |
 | `sandbox-cli claude [args]` | Run Claude Code (args forwarded to the agent) |
 | `sandbox-cli codex [args]` | Run Codex CLI |
+| `sandbox-cli gemini [args]` | Run Gemini CLI |
+| `sandbox-cli opencode [args]` | Run OpenCode |
+| `sandbox-cli cline [args]` | Run Cline (installed on first use) |
+| `sandbox-cli goose [args]` | Run Goose (installed on first use) |
+| `sandbox-cli crush [args]` | Run Crush (installed on first use) |
+| `sandbox-cli aider [args]` | Run Aider (installed on first use, via uv) |
+| `sandbox-cli copilot [args]` | Run GitHub Copilot CLI (installed on first use) |
+| `sandbox-cli cursor [args]` | Run Cursor CLI (installed on first use) |
+| `sandbox-cli qwen [args]` | Run Qwen Code (installed on first use) |
+| `sandbox-cli amp [args]` | Run Amp (installed on first use) |
+| `sandbox-cli continue [args]` | Run Continue CLI (installed on first use) |
+| `sandbox-cli openhands [args]` | Run OpenHands CLI (installed on first use) |
+| `sandbox-cli droid [args]` | Run Droid (installed on first use) |
 | `sandbox-cli init` | Scaffold a `.sandbox.yaml` |
 | `sandbox-cli config show\|path\|validate` | Inspect the effective config |
 | `sandbox-cli stats` | Live table of running sandboxes |
@@ -459,7 +509,7 @@ Run `sandbox-cli config show` to see the effective, merged config.
 | `sandbox-cli worktree commit BRANCH -m ...` | Commit what the agent left there |
 | `sandbox-cli version` | Print the version |
 
-Common flags (work on `run`/`claude`/`codex`):
+Common flags (work on `run` and on every agent wrapper):
 
 | Flag | Meaning |
 |---|---|
@@ -470,6 +520,7 @@ Common flags (work on `run`/`claude`/`codex`):
 | `--cache` | Persist package caches across runs |
 | `--secret NAME=file:\|cmd:\|env:...` | Brokered credential (repeatable) |
 | `--worktree BRANCH` | Run in a git worktree for BRANCH |
+| `--share` | Mount `~/.config/sandbox/shared` at `/shared` (exchange files between sandboxes) |
 | `--git` | Forward git identity + trust the workspace |
 | `--host-gateway` / `--add-host H:IP` | Reach host services / add a host mapping |
 | `--memory 2g` / `--cpus 1.5` | Resource limits |
@@ -501,6 +552,40 @@ point the agent at `host.docker.internal`.
 **Files in `/workspace` are owned by the wrong user (Linux)** — run as your own
 uid: `--user "$(id -u):$(id -g)"`. On macOS Docker Desktop this is handled
 automatically.
+
+**I can't select text with the mouse** — the agent's UI turns on mouse reporting,
+so your terminal hands the drag to the application instead of making a selection.
+Hold your terminal's override key while dragging: `Option` in iTerm2, `Shift` in
+Ghostty. For a code block, add the rectangular-selection modifier (`Cmd+Option`
+in iTerm2, `Ctrl+Alt` in Ghostty) so you get the code columns without the
+surrounding frame. None of this involves the sandbox — it behaves the same way
+running the agent directly on the host.
+
+**Claude's `/copy` doesn't reach my clipboard** — `/copy` is Claude Code's own
+command, and it shells out to a platform clipboard tool (`pbcopy` on macOS,
+`xclip`/`xsel`/`wl-copy` on Linux). None of those can work in a container, so the
+image ships a shim under all four names that writes an OSC 52 escape sequence to
+the terminal instead; your emulator reads it off the tty and puts the text on the
+real clipboard. If nothing arrives, the terminal is refusing the sequence — see
+the next entry. For very long output, sidestep the clipboard entirely: ask the
+agent to write the text to a file in `/workspace` and copy it host-side
+(`pbcopy < snippet.md`), which also avoids the hard line wraps a screen selection
+picks up. Pasting *into* the sandbox from the host clipboard is not supported and
+reports an error rather than returning nothing.
+
+**A tool says it copied, but nothing pastes** — something in the container is
+using an OSC 52 escape sequence to reach the host clipboard, and your terminal
+has to permit that. iTerm2 gates it behind Settings → General → Selection →
+"Applications in terminal may access clipboard" (off by default); tmux needs
+`set -g set-clipboard on` or it swallows the sequence; macOS Terminal.app has no
+support at all. Test the terminal on its own first, with no container involved:
+
+```sh
+printf '\033]52;c;%s\a' "$(printf hello | base64)"   # then paste
+```
+
+If that doesn't paste, it's terminal configuration and nothing in the sandbox can
+change it.
 
 **I want to see what it will do without running** — add `--dry-run`.
 

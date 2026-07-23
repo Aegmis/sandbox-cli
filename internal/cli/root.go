@@ -4,6 +4,7 @@ package cli
 import (
 	"fmt"
 	"os"
+	"path/filepath"
 
 	"github.com/spf13/cobra"
 
@@ -14,7 +15,7 @@ import (
 	"github.com/Aegmis/sandbox-cli/internal/worktree"
 )
 
-// runFlags holds the persistent flag values shared by run/claude/codex.
+// runFlags holds the persistent flag values shared by run and the agent wrappers.
 type runFlags struct {
 	project     string
 	image       string
@@ -40,6 +41,7 @@ type runFlags struct {
 	hostGateway bool
 	git         bool
 	runtime     string
+	share       bool
 
 	// Auth persistence (agent wrappers only). persistName is the sandbox-owned
 	// host state dir name (e.g. "claude") mounted as the agent's HOME.
@@ -128,12 +130,46 @@ func newSession(rf *runFlags) (*sandbox.Session, sandbox.Options, error) {
 	}
 	if gitDir, ok := worktree.GitCommonDir(config.ExpandTilde(projectDir)); ok {
 		opts.ExtraMounts = append(opts.ExtraMounts, gitDir+":"+gitDir+":rw")
+
+		// The worktree is mounted a second time at its own host path, not only at
+		// /workspace. The parent repo records each linked worktree by absolute path
+		// and treats a record whose path has vanished as a deleted worktree, so
+		// inside the container every one of them reads as "prunable: gitdir file
+		// points to non-existent location" — the host paths simply aren't there.
+		// The parent .git above is mounted read-write so the agent can commit, which
+		// means a `git worktree prune` (or the one `git gc` runs for itself) reaches
+		// out of the container and deletes the user's entire worktree registry,
+		// orphaning every worktree including the one it is running in. Making the
+		// path resolve is one extra bind of a directory that is already mounted, so
+		// it grants no reach the container did not have a moment ago.
+		if wt, err := filepath.Abs(config.ExpandTilde(projectDir)); err == nil {
+			opts.ExtraMounts = append(opts.ExtraMounts, wt+":"+wt+":rw")
+		}
 	}
 
 	// Display only: the live gauge and the post-run summary show which branch the
 	// sandbox is on. It matters most with --worktree, where several containers are
 	// running different branches of the same repo at once.
 	opts.Branch = worktree.Branch(config.ExpandTilde(projectDir))
+
+	// --share: mount one sandbox-owned host directory at /shared. This is the
+	// only mount that is intentionally the *same* for every project, which is
+	// what makes it a channel: two agents that share nothing else — different
+	// repos, different worktrees, different containers — can hand a file over
+	// through it. Opt-in, because a cross-project channel is exactly the kind of
+	// reach the sandbox otherwise refuses by default.
+	if rf.share {
+		dir := config.SharedDir()
+		if dir == "" {
+			return nil, sandbox.Options{}, fmt.Errorf("--share: cannot determine the config directory (no HOME?)")
+		}
+		if err := os.MkdirAll(dir, 0o700); err != nil {
+			return nil, sandbox.Options{}, fmt.Errorf("creating shared dir %s: %w", dir, err)
+		}
+		seedSharedReadme(dir)
+		opts.ExtraMounts = append(opts.ExtraMounts, dir+":"+sharedTarget+":rw")
+		fmt.Fprintf(os.Stderr, "sandbox-cli: sharing %s at %s\n", dir, sharedTarget)
+	}
 
 	// Persist agent login in a dedicated, sandbox-owned host dir mounted as the
 	// agent's whole HOME, so login survives the ephemeral container.
@@ -190,6 +226,7 @@ func addRunFlags(cmd *cobra.Command, rf *runFlags) {
 	f.BoolVar(&rf.hostGateway, "host-gateway", false, "map host.docker.internal to the host so the agent can reach host MCP servers (Linux)")
 	f.BoolVar(&rf.git, "git", false, "forward host git identity and trust the workspace so git commits just work in-container")
 	f.StringVar(&rf.runtime, "runtime", "", "OCI runtime for stronger isolation, e.g. kata-runtime (microVM) or runsc (gVisor); must be registered with docker")
+	f.BoolVar(&rf.share, "share", false, "mount the shared dir (~/.config/sandbox/shared) at /shared so agents in different projects can exchange files")
 
 	// Flags before -- are ours; everything after -- is the guest command verbatim.
 	f.SetInterspersed(false)
@@ -209,14 +246,14 @@ func NewRootCmd() *cobra.Command {
 	}
 	root.AddCommand(
 		newRunCmd(),
-		newClaudeCmd(),
-		newCodexCmd(),
 		newInitCmd(),
 		newConfigCmd(),
 		newStatsCmd(),
 		newWorktreeCmd(),
 		newVersionCmd(),
 	)
+	// One command per agent adapter, from the single list in agents.go.
+	root.AddCommand(agentCmds()...)
 	return root
 }
 
