@@ -66,6 +66,7 @@ The shared contract is pinned by `TestAgentWrappersShareTheContract`
 | Qwen Code | `qwen` | `@qwen-code/qwen-code` (npm), installed on first use | `OPENAI_API_KEY`, `ANTHROPIC_API_KEY`, `GEMINI_API_KEY`, `GOOGLE_API_KEY`, `DASHSCOPE_API_KEY`, `OPENROUTER_API_KEY`, `BAILIAN_CODING_PLAN_API_KEY`, base URLs; **sets** `SANDBOX=1`, `NO_BROWSER=1` |
 | Amp | `amp` | `@ampcode/cli` (npm), installed on first use | `AMP_API_KEY`, `AMP_URL`, `AMP_LOG_LEVEL`, `AMP_SKIP_UPDATE_CHECK` |
 | Continue CLI | `continue` (runs `cn`) | `@continuedev/cli` (npm), installed on first use | `ANTHROPIC_API_KEY`, `CONTINUE_API_BASE`, AWS keys, `GOOGLE_CLOUD_PROJECT` |
+| OpenHands CLI | `openhands` | standalone binary from GitHub releases, on first use | `LLM_API_KEY`, `LLM_MODEL`, `LLM_BASE_URL` (need `--override-with-envs`), `ANTHROPIC_API_KEY`, `OPENAI_API_KEY`, `OPENHANDS_CLOUD_URL` |
 ### Status-line support, per agent
 
 Checked upstream in July 2026, because it is the first thing a new adapter has to
@@ -146,23 +147,13 @@ top. Package names and config paths below are the starting point for the work,
 **not verified facts**: confirm each against upstream when implementing, since a
 wrong package name in the Dockerfile fails silently (`|| true`).
 
-### 1. OpenHands CLI
-
-- [ ] `openhands`.
-- Install: Python — blocked on the same image work as aider.
-- Note: OpenHands normally runs its own runtime container per session. Inside the
-  sandbox there is no docker socket (and mounting one would hand the container
-  control of the host daemon — see the README's threat model), so this adapter is
-  only meaningful for the local/CLI-only runtime mode. Confirm that mode exists
-  and works before starting.
-
-### 2. Droid
+### 1. Droid
 
 - [ ] `droid` (Factory).
 - Install: upstream install script.
 - Env: `FACTORY_API_KEY`.
 
-### 3. Plandex
+### 2. Plandex
 
 - [ ] `plandex` / `pdx`.
 - Install: install script or Go binary.

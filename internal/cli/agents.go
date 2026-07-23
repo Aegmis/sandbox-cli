@@ -24,6 +24,7 @@ func agentCmds() []*cobra.Command {
 		newQwenCmd(),
 		newAmpCmd(),
 		newContinueCmd(),
+		newOpenhandsCmd(),
 	}
 }
 
