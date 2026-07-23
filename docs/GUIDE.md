@@ -493,6 +493,7 @@ Run `sandbox-cli config show` to see the effective, merged config.
 | `sandbox-cli copilot [args]` | Run GitHub Copilot CLI (installed on first use) |
 | `sandbox-cli cursor [args]` | Run Cursor CLI (installed on first use) |
 | `sandbox-cli qwen [args]` | Run Qwen Code (installed on first use) |
+| `sandbox-cli amp [args]` | Run Amp (installed on first use) |
 | `sandbox-cli init` | Scaffold a `.sandbox.yaml` |
 | `sandbox-cli config show\|path\|validate` | Inspect the effective config |
 | `sandbox-cli stats` | Live table of running sandboxes |
