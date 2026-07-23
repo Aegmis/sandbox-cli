@@ -15,7 +15,7 @@ import (
 	"github.com/Aegmis/sandbox-cli/internal/worktree"
 )
 
-// runFlags holds the persistent flag values shared by run/claude/codex.
+// runFlags holds the persistent flag values shared by run and the agent wrappers.
 type runFlags struct {
 	project     string
 	image       string
@@ -248,6 +248,8 @@ func NewRootCmd() *cobra.Command {
 		newRunCmd(),
 		newClaudeCmd(),
 		newCodexCmd(),
+		newGeminiCmd(),
+		newOpencodeCmd(),
 		newInitCmd(),
 		newConfigCmd(),
 		newStatsCmd(),

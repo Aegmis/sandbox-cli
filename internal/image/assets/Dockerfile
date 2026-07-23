@@ -1,8 +1,8 @@
 # sandbox-base: the default disposable execution environment.
 #
 # node:*-bookworm-slim is multi-arch, so on Apple Silicon this resolves to the
-# arm64 variant automatically. Node is present because Claude Code and Codex are
-# distributed as npm packages.
+# arm64 variant automatically. Node is present because every agent wrapped here
+# (Claude Code, Codex, Gemini CLI, OpenCode) ships as an npm package.
 FROM node:22-bookworm-slim
 
 # Common dev/agent tooling.
@@ -20,11 +20,18 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
       iptables \
     && rm -rf /var/lib/apt/lists/*
 
-# Pre-install the agents so `sandbox-cli codex` and an offline `sandbox-cli claude`
-# work out of the box. Kept best-effort so an upstream hiccup doesn't break the
-# build. The claude wrapper prefers a self-updating install in the persisted HOME
-# (~/.local/bin, ahead on PATH); this baked copy is the offline fallback.
-RUN npm install -g @anthropic-ai/claude-code @openai/codex || true
+# Pre-install the agents so `sandbox-cli codex` / `gemini` / `opencode` and an
+# offline `sandbox-cli claude` work out of the box. Kept best-effort so an
+# upstream hiccup doesn't break the build. The claude wrapper prefers a
+# self-updating install in the persisted HOME (~/.local/bin, ahead on PATH); this
+# baked copy is the offline fallback. The other wrappers fall the other way: if a
+# package is missing here they install it into the persisted HOME on first run.
+# Installed one package per layer so a single unavailable agent doesn't take the
+# rest down with it — `npm install -g a b c` is all-or-nothing.
+RUN npm install -g @anthropic-ai/claude-code || true
+RUN npm install -g @openai/codex || true
+RUN npm install -g @google/gemini-cli || true
+RUN npm install -g opencode-ai || true
 
 # Live resource status line for Claude Code: reads the container's own cgroup v2
 # memory/CPU and prints one line. Claude runs it via a managed-settings.json that

@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## What this is
 
-`sandbox-cli` runs AI coding agents (Claude Code, Codex CLI) or any command inside a disposable,
+`sandbox-cli` runs AI coding agents (Claude Code, Codex CLI, Gemini CLI, OpenCode) or any command inside a disposable,
 isolated Docker container. Only the chosen project is bind-mounted at `/workspace`; `HOME` is a
 fake ephemeral path (`/sandbox/home`) and the container is `--rm`. The goal is to give an agent
 "Allow All" autonomy while limiting the blast radius to the project it is editing.
@@ -61,17 +61,40 @@ cmd/sandbox-cli  →  internal/cli  →  config.Load + sandbox.BuildSpec  →  r
 
 2. **The two subcommand flag-parsing modes are different on purpose** (`internal/cli`):
    - `run` — sandbox flags first, guest command after `--` (`sandbox-cli run --dry-run -- npm test`).
-   - `claude` / `codex` wrappers — `DisableFlagParsing: true`; `splitWrapperArgs` consumes a *leading*
+   - agent wrappers (`claude`/`codex`/`gemini`/`opencode`) — `DisableFlagParsing: true`; `splitWrapperArgs` consumes a *leading*
      run of recognized sandbox long-flags, then forwards **everything else verbatim** to the agent, so
      `sandbox-cli claude --dangerously-skip-permissions` just works and agent short flags never collide.
      A sandbox option after the boundary needs a `--` separator.
 
 ### Agent wrappers
 
-`claude`/`codex` each carry a suggested opt-in env allowlist (e.g. `ANTHROPIC_API_KEY`, applied only
-if set) and **persist the agent login by default** by bind-mounting a sandbox-owned host dir
-(`~/.config/sandbox/agents/<name>`) at the agent's config dir inside the ephemeral HOME. This is
-separate from the host's real `~/.claude`. `--no-persist-auth` opts out.
+Each wrapper is one file in `internal/cli` (`claude.go`, `codex.go`, `gemini.go`, `opencode.go`)
+carrying a suggested opt-in env allowlist (e.g. `ANTHROPIC_API_KEY`, applied only if set) and ending
+in `finishAgentCmd(cmd, rf, "<agent>")` (`agents.go`), which adds the shared sandbox flags and
+**persists the agent login by default** by bind-mounting a sandbox-owned host dir
+(`~/.config/sandbox/agents/<name>`) as the agent's whole HOME. This is separate from the host's real
+`~/.claude`. `--no-persist-auth` opts out. Agents that may be missing from the baked base image use
+`npmAgentBootstrap(bin, pkg)`, which installs into the persisted HOME on first run.
+
+`TestAgentWrappersShareTheContract` pins that shape for every wrapper. Adding an agent means: a file
+in `internal/cli`, a line in `NewRootCmd`, its own `RUN npm install -g` layer in
+`internal/image/assets/Dockerfile` (one per agent, so one bad package doesn't take the others down),
+and an entry in the test table. The queue of agents still to adapt, ordered by popularity, plus the
+full checklist, is in `docs/proposals/agent-adapters.md`.
+
+### The memory/CPU status line
+
+Only `claude` gets one on screen, and that is a deliberate limit, not an oversight:
+
+- **`claude`** — Claude Code's `statusLine` hook runs `sandbox-statusline` (baked in the image)
+  and renders it in its own UI. Injected via a managed-settings.json mounted read-only, which
+  never touches the user's own Claude settings. `--no-statusline` opts out.
+- **`gemini` / `opencode` / `codex`** — nothing on screen. Neither Gemini CLI nor OpenCode has a
+  status-line hook (verified upstream; see `docs/proposals/agent-adapters.md`). Running them
+  inside tmux to get one was tried and reverted: it made the agents' TUIs render badly, which is
+  a bad trade for a gauge. `sandbox-cli stats` in a second terminal is the answer for these.
+
+Don't reach for a terminal multiplexer here again without checking that the agent's UI survives it.
 
 `claude` additionally read-write mounts the host's Claude history for the current project
 (`~/.claude/projects/<bucket>`) into the persisted HOME by default, so host sessions resolve

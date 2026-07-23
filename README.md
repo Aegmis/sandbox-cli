@@ -1,6 +1,7 @@
 # sandbox-cli
 
-Run AI coding agents (Claude Code, Codex CLI) — or any command — inside a
+Run AI coding agents (Claude Code, Codex CLI, Gemini CLI, OpenCode) — or any
+command — inside a
 **disposable, isolated Docker container**. Only the project you choose is mounted
 at `/workspace`; `HOME` is a fake, ephemeral directory. A mistaken `rm -rf ~` or
 a prompt-injected command can't touch the rest of your machine.
@@ -10,7 +11,7 @@ a prompt-injected command can't touch the rest of your machine.
   ~/projects/myapp  ── bind ──►  /workspace   (the only host-connected path)
   ~/.ssh ~/.aws ~/  ── NOT mounted            HOME=/sandbox/home  (ephemeral)
 
-  (the claude/codex wrappers additionally mount a sandbox-owned agent home and,
+  (the agent wrappers additionally mount a sandbox-owned agent home and,
    for claude, your history for this one project — both opt-out; see below)
 ```
 
@@ -104,6 +105,8 @@ sandbox-cli run --dry-run -- npm test
 ANTHROPIC_API_KEY=... sandbox-cli claude
 ANTHROPIC_API_KEY=... sandbox-cli claude --dangerously-skip-permissions
 OPENAI_API_KEY=...    sandbox-cli codex exec 'run the tests'
+GEMINI_API_KEY=...    sandbox-cli gemini --yolo
+ANTHROPIC_API_KEY=... sandbox-cli opencode run 'run the tests'
 
 # Scaffold a project config
 sandbox-cli init
@@ -111,8 +114,8 @@ sandbox-cli init
 
 ### Passing flags to the agent
 
-For `sandbox-cli claude` / `sandbox-cli codex`, **everything you type is forwarded to the
-agent** — so `sandbox-cli claude --dangerously-skip-permissions` just works, and there
+For every agent wrapper (`claude`, `codex`, `gemini`, `opencode`), **everything you
+type is forwarded to the agent** — so `sandbox-cli claude --dangerously-skip-permissions` just works, and there
 are no collisions with sandbox's own flags.
 
 The rule is one sentence: **a leading run of sandbox long-flags is consumed by
@@ -151,13 +154,15 @@ sandbox-cli claude --worktree feature-a --dry-run -- -p "implement A"
 
 ### Persistent agent login
 
-`sandbox-cli claude` / `sandbox-cli codex` **persist the agent's login by default**, so you
+Every agent wrapper **persists the agent's login by default**, so you
 authenticate once and it survives the throwaway containers. A dedicated,
 sandbox-owned host directory is bind-mounted as the agent's whole home:
 
 ```
-~/.config/sandbox/agents/claude  ->  /sandbox/home   (sandbox-cli claude)
-~/.config/sandbox/agents/codex   ->  /sandbox/home   (sandbox-cli codex)
+~/.config/sandbox/agents/claude    ->  /sandbox/home   (sandbox-cli claude)
+~/.config/sandbox/agents/codex     ->  /sandbox/home   (sandbox-cli codex)
+~/.config/sandbox/agents/gemini    ->  /sandbox/home   (sandbox-cli gemini)
+~/.config/sandbox/agents/opencode  ->  /sandbox/home   (sandbox-cli opencode)
 ```
 
 The whole home is persisted (not just `~/.claude`) because agents keep their
@@ -279,7 +284,7 @@ CONTAINER             MEM                CPU     PIDS
 sandbox-dk0gtrd15s2g  412MiB / 7.6GiB   82.00%  24
 ```
 
-### Common flags (run / claude / codex)
+### Common flags (run / claude / codex / gemini / opencode)
 
 | Flag | Meaning |
 |---|---|
@@ -508,7 +513,7 @@ platforms; the differences are all about the boundary the host can provide.
 
 | Capability | macOS (Docker Desktop) | Linux (native Docker) | Windows (Docker Desktop / WSL2) |
 |---|---|---|---|
-| Core: `run` / `claude` / `codex`, mounts, env, hardening, metrics | ✅ | ✅ | ✅ |
+| Core: `run` + the agent wrappers, mounts, env, hardening, metrics | ✅ | ✅ | ✅ |
 | `--cache`, `--secret`, `--worktree`, `--git`, `--share` | ✅ | ✅ | ✅ |
 | Egress allowlist (`--allow`) | ✅ ¹ | ✅ | ✅ ¹ |
 | `--host-gateway` | auto ² | ✅ (needed) | auto ² |
@@ -574,7 +579,7 @@ secrets:              # broker: resolve at run time, forward by name (never on t
 
 - **Only `/workspace` is host-connected and writable** for `sandbox-cli run`.
   `HOME`, `/etc`, `/` inside the container are ephemeral and destroyed on exit
-  (`--rm`). The `claude` / `codex` wrappers add two more host paths by default,
+  (`--rm`). The agent wrappers add two more host paths by default,
   both scoped and both opt-out: the sandbox-owned agent home
   (`~/.config/sandbox/agents/<agent>`, `--no-persist-auth`) and your Claude
   history for the current project (`--no-sync`). When the workspace is a git
@@ -583,8 +588,8 @@ secrets:              # broker: resolve at run time, forward by name (never on t
 - **The host home is never mounted.** sandbox refuses to mount `/`, your home
   directory, or any ancestor of it as the workspace.
 - **Default-deny credentials.** Nothing from your host env crosses the boundary
-  unless you opt in via `env_allow` / `--env-allow` / `--env`. `claude`/`codex`
-  ship a suggested allowlist (e.g. `ANTHROPIC_API_KEY`) applied only if the value
+  unless you opt in via `env_allow` / `--env-allow` / `--env`. Each agent wrapper
+  ships a suggested allowlist (e.g. `ANTHROPIC_API_KEY`) applied only if the value
   is set. For OAuth-file logins, mount just the agent's own dir, e.g.
   `--mount ~/.claude:/sandbox/home/.claude:rw`.
 - **Credential broker.** For secrets you'd rather not put on the command line or

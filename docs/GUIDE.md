@@ -83,8 +83,10 @@ cd ~/code/my-app
 # 2. Run Claude Code in the sandbox (logs you in the first time)
 sandbox-cli claude
 
-# ...or Codex
+# ...or another agent
 sandbox-cli codex
+sandbox-cli gemini
+sandbox-cli opencode
 
 # 3. Or run any command in the sandbox
 sandbox-cli run -- npm test
@@ -418,11 +420,20 @@ Non-interactive runs show a live memory/CPU gauge; every run prints a peak-usage
 summary at the end. `sandbox-cli stats` shows a live table of running sandboxes.
 Disable with `--no-metrics`.
 
-### Works with both Claude and Codex
-`sandbox-cli claude` and `sandbox-cli codex` wrap each agent, forward its flags
-untouched (so `--dangerously-skip-permissions` just works), and **persist each
-agent's login** in a sandbox-owned folder so you only log in once — kept separate
-from your real `~/.claude`.
+During an interactive agent session, only `claude` shows the gauge on screen — it
+has a `statusLine` hook sandbox-cli can render into (`--no-statusline` turns it
+off). `gemini`, `opencode` and `codex` have no such hook, so for those run
+`sandbox-cli stats` in a second terminal.
+
+### Works with Claude, Codex, Gemini and OpenCode
+`sandbox-cli claude` / `codex` / `gemini` / `opencode` wrap each agent, forward
+its flags untouched (so `--dangerously-skip-permissions` just works), and
+**persist each agent's login** in a sandbox-owned folder — one per agent — so you
+only log in once, kept separate from your real `~/.claude`, `~/.gemini`, etc.
+
+Adding another agent is a small, well-defined piece of work; the queue and the
+per-adapter checklist live in
+[docs/proposals/agent-adapters.md](proposals/agent-adapters.md).
 
 ---
 
@@ -473,6 +484,8 @@ Run `sandbox-cli config show` to see the effective, merged config.
 | `sandbox-cli run -- <cmd>` | Run any command in the sandbox |
 | `sandbox-cli claude [args]` | Run Claude Code (args forwarded to the agent) |
 | `sandbox-cli codex [args]` | Run Codex CLI |
+| `sandbox-cli gemini [args]` | Run Gemini CLI |
+| `sandbox-cli opencode [args]` | Run OpenCode |
 | `sandbox-cli init` | Scaffold a `.sandbox.yaml` |
 | `sandbox-cli config show\|path\|validate` | Inspect the effective config |
 | `sandbox-cli stats` | Live table of running sandboxes |
@@ -481,7 +494,7 @@ Run `sandbox-cli config show` to see the effective, merged config.
 | `sandbox-cli worktree commit BRANCH -m ...` | Commit what the agent left there |
 | `sandbox-cli version` | Print the version |
 
-Common flags (work on `run`/`claude`/`codex`):
+Common flags (work on `run` and on every agent wrapper):
 
 | Flag | Meaning |
 |---|---|
