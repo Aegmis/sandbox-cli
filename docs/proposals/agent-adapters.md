@@ -61,6 +61,7 @@ The shared contract is pinned by `TestAgentWrappersShareTheContract`
 | Goose | `goose` | official installer, on first use (needs `bzip2`) | `ANTHROPIC_API_KEY`, `OPENAI_API_KEY`, `GOOGLE_API_KEY`, `GROQ_API_KEY`, `OPENROUTER_API_KEY`, `GOOSE_PROVIDER`, `GOOSE_MODEL`, `GOOSE_FAST_MODEL`, `GOOSE_MODE`; **sets** `GOOSE_DISABLE_KEYRING=1` |
 | Crush | `crush` | `@charmland/crush` (npm), installed on first use | `ANTHROPIC_API_KEY`, `OPENAI_API_KEY`, `GEMINI_API_KEY`, `OPENROUTER_API_KEY`, `GROQ_API_KEY`, `HYPER_API_KEY`, AWS/Azure keys |
 | Aider | `aider` | `aider-chat` (PyPI) via uv, on first use | `OPENAI_API_KEY`, `ANTHROPIC_API_KEY`, `GEMINI_API_KEY`, `DEEPSEEK_API_KEY`, `OPENROUTER_API_KEY`, `OPENAI_API_BASE`, `ANTHROPIC_API_BASE` |
+| GitHub Copilot CLI | `copilot` | `@github/copilot` (npm), installed on first use | `COPILOT_GITHUB_TOKEN`, `GH_TOKEN`, `GITHUB_TOKEN`, `GH_HOST`, `COPILOT_MODEL`, `COPILOT_API_URL` |
 ### Status-line support, per agent
 
 Checked upstream in July 2026, because it is the first thing a new adapter has to
@@ -141,18 +142,7 @@ top. Package names and config paths below are the starting point for the work,
 **not verified facts**: confirm each against upstream when implementing, since a
 wrong package name in the Dockerfile fails silently (`|| true`).
 
-### 1. GitHub Copilot CLI
-
-- [ ] `copilot` — the largest distribution of any agent here.
-- Install: npm (`@github/copilot`); verify the current package name.
-- Env: `GITHUB_TOKEN`, `GH_TOKEN`, `COPILOT_*`.
-- Auth: device-code flow works fine headless — it prints a code you enter on the
-  host, no browser needed in the container. State under `~/.config/github-copilot`.
-- Note: forwarding a host `GITHUB_TOKEN` hands the container a credential with
-  reach far beyond the workspace. Forward-if-set is the existing convention, but
-  this one deserves an explicit warning in the command's help text.
-
-### 2. Cursor CLI
+### 1. Cursor CLI
 
 - [ ] `cursor-agent`.
 - Install: upstream install script (`curl … | bash`), like the claude bootstrap;
@@ -162,7 +152,7 @@ wrong package name in the Dockerfile fails silently (`|| true`).
   under `--allow` (the egress allowlist), whose baseline covers package registries
   but not necessarily the vendor's download host.
 
-### 3. Qwen Code
+### 2. Qwen Code
 
 - [ ] `qwen`.
 - Install: npm (`@qwen-code/qwen-code`).
@@ -170,19 +160,19 @@ wrong package name in the Dockerfile fails silently (`|| true`).
   `DASHSCOPE_API_KEY`.
 - Note: a Gemini CLI fork, so the `gemini` adapter is the closest template.
 
-### 4. Amp
+### 3. Amp
 
 - [ ] `amp` (Sourcegraph).
 - Install: npm (`@sourcegraph/amp`).
 - Env: `AMP_API_KEY`, `AMP_URL`.
 
-### 5. Continue CLI
+### 4. Continue CLI
 
 - [ ] `cn`.
 - Install: npm (`@continuedev/cli`).
 - Env: `CONTINUE_API_KEY` plus provider keys; config `~/.continue`.
 
-### 6. OpenHands CLI
+### 5. OpenHands CLI
 
 - [ ] `openhands`.
 - Install: Python — blocked on the same image work as aider.
@@ -192,13 +182,13 @@ wrong package name in the Dockerfile fails silently (`|| true`).
   only meaningful for the local/CLI-only runtime mode. Confirm that mode exists
   and works before starting.
 
-### 7. Droid
+### 6. Droid
 
 - [ ] `droid` (Factory).
 - Install: upstream install script.
 - Env: `FACTORY_API_KEY`.
 
-### 8. Plandex
+### 7. Plandex
 
 - [ ] `plandex` / `pdx`.
 - Install: install script or Go binary.
