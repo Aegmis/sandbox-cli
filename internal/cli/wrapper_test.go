@@ -7,8 +7,6 @@ import (
 	"reflect"
 	"strings"
 	"testing"
-
-	"github.com/spf13/cobra"
 )
 
 func TestSplitWrapperArgs(t *testing.T) {
@@ -106,10 +104,7 @@ func TestClaudeWrapperParsesWithoutError(t *testing.T) {
 // one would cross their logins into a single directory.
 func TestAgentWrappersShareTheContract(t *testing.T) {
 	agents := map[string]bool{}
-	for _, ctor := range []func() *cobra.Command{
-		newClaudeCmd, newCodexCmd, newGeminiCmd, newOpencodeCmd,
-	} {
-		cmd := ctor()
+	for _, cmd := range agentCmds() {
 		name := strings.Fields(cmd.Use)[0]
 		t.Run(name, func(t *testing.T) {
 			if !cmd.DisableFlagParsing {

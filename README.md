@@ -1,7 +1,7 @@
 # sandbox-cli
 
-Run AI coding agents (Claude Code, Codex CLI, Gemini CLI, OpenCode) — or any
-command — inside a
+Run AI coding agents (Claude Code, Codex CLI, Gemini CLI, OpenCode, Cline, and
+more) — or any command — inside a
 **disposable, isolated Docker container**. Only the project you choose is mounted
 at `/workspace`; `HOME` is a fake, ephemeral directory. A mistaken `rm -rf ~` or
 a prompt-injected command can't touch the rest of your machine.
@@ -114,8 +114,8 @@ sandbox-cli init
 
 ### Passing flags to the agent
 
-For every agent wrapper (`claude`, `codex`, `gemini`, `opencode`), **everything you
-type is forwarded to the agent** — so `sandbox-cli claude --dangerously-skip-permissions` just works, and there
+For every agent wrapper (`claude`, `codex`, `gemini`, `opencode`, `cline`, …),
+**everything you type is forwarded to the agent** — so `sandbox-cli claude --dangerously-skip-permissions` just works, and there
 are no collisions with sandbox's own flags.
 
 The rule is one sentence: **a leading run of sandbox long-flags is consumed by
@@ -163,6 +163,7 @@ sandbox-owned host directory is bind-mounted as the agent's whole home:
 ~/.config/sandbox/agents/codex     ->  /sandbox/home   (sandbox-cli codex)
 ~/.config/sandbox/agents/gemini    ->  /sandbox/home   (sandbox-cli gemini)
 ~/.config/sandbox/agents/opencode  ->  /sandbox/home   (sandbox-cli opencode)
+~/.config/sandbox/agents/cline     ->  /sandbox/home   (sandbox-cli cline)
 ```
 
 The whole home is persisted (not just `~/.claude`) because agents keep their
@@ -284,7 +285,7 @@ CONTAINER             MEM                CPU     PIDS
 sandbox-dk0gtrd15s2g  412MiB / 7.6GiB   82.00%  24
 ```
 
-### Common flags (run / claude / codex / gemini / opencode)
+### Common flags (run and every agent wrapper)
 
 | Flag | Meaning |
 |---|---|

@@ -4,6 +4,21 @@ import "github.com/spf13/cobra"
 
 // Shared plumbing for the agent wrappers (claude/codex/gemini/opencode).
 
+// agentCmds builds every agent adapter command, newest-supported last. This is
+// the single list: NewRootCmd registers what it returns, and the contract test
+// checks what it returns, so an adapter cannot be wired into the command tree
+// while being quietly left out of the test that holds adapters to their shared
+// shape (or the reverse).
+func agentCmds() []*cobra.Command {
+	return []*cobra.Command{
+		newClaudeCmd(),
+		newCodexCmd(),
+		newGeminiCmd(),
+		newOpencodeCmd(),
+		newClineCmd(),
+	}
+}
+
 // agentAnnotation keys the cobra annotation carrying an adapter's agent name —
 // the same string that becomes its persisted-HOME directory. It exists so the
 // wiring can be inspected (by tests, and by anything that wants to enumerate the

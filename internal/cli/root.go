@@ -246,16 +246,14 @@ func NewRootCmd() *cobra.Command {
 	}
 	root.AddCommand(
 		newRunCmd(),
-		newClaudeCmd(),
-		newCodexCmd(),
-		newGeminiCmd(),
-		newOpencodeCmd(),
 		newInitCmd(),
 		newConfigCmd(),
 		newStatsCmd(),
 		newWorktreeCmd(),
 		newVersionCmd(),
 	)
+	// One command per agent adapter, from the single list in agents.go.
+	root.AddCommand(agentCmds()...)
 	return root
 }
 

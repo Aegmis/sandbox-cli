@@ -425,8 +425,8 @@ has a `statusLine` hook sandbox-cli can render into (`--no-statusline` turns it
 off). `gemini`, `opencode` and `codex` have no such hook, so for those run
 `sandbox-cli stats` in a second terminal.
 
-### Works with Claude, Codex, Gemini and OpenCode
-`sandbox-cli claude` / `codex` / `gemini` / `opencode` wrap each agent, forward
+### Works with Claude, Codex, Gemini, OpenCode and Cline
+`sandbox-cli claude` / `codex` / `gemini` / `opencode` / `cline` wrap each agent, forward
 its flags untouched (so `--dangerously-skip-permissions` just works), and
 **persist each agent's login** in a sandbox-owned folder — one per agent — so you
 only log in once, kept separate from your real `~/.claude`, `~/.gemini`, etc.
@@ -486,6 +486,7 @@ Run `sandbox-cli config show` to see the effective, merged config.
 | `sandbox-cli codex [args]` | Run Codex CLI |
 | `sandbox-cli gemini [args]` | Run Gemini CLI |
 | `sandbox-cli opencode [args]` | Run OpenCode |
+| `sandbox-cli cline [args]` | Run Cline (installed on first use) |
 | `sandbox-cli init` | Scaffold a `.sandbox.yaml` |
 | `sandbox-cli config show\|path\|validate` | Inspect the effective config |
 | `sandbox-cli stats` | Live table of running sandboxes |

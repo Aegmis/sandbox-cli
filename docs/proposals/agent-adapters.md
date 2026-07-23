@@ -57,6 +57,7 @@ The shared contract is pinned by `TestAgentWrappersShareTheContract`
 | Gemini CLI | `gemini` | `@google/gemini-cli`, baked + HOME fallback | `GEMINI_API_KEY`, `GOOGLE_API_KEY`, `GOOGLE_GENAI_USE_VERTEXAI`, `GOOGLE_CLOUD_PROJECT`, `GOOGLE_CLOUD_LOCATION` |
 | OpenCode | `opencode` | `opencode-ai`, baked + HOME fallback | `ANTHROPIC_API_KEY`, `OPENAI_API_KEY`, `GEMINI_API_KEY`, `GROQ_API_KEY`, `OPENROUTER_API_KEY`, `OPENCODE_CONFIG`, `OPENCODE_DISABLE_AUTOUPDATE` |
 
+| Cline | `cline` | `cline` (npm), installed on first use | `ANTHROPIC_API_KEY`, `CLINE_API_KEY`, `OPENAI_API_KEY`, `OPENROUTER_API_KEY`, `AI_GATEWAY_API_KEY`, `V0_API_KEY` |
 ### Status-line support, per agent
 
 Checked upstream in July 2026, because it is the first thing a new adapter has to
@@ -152,14 +153,7 @@ wrong package name in the Dockerfile fails silently (`|| true`).
   under `--allow` (the egress allowlist), whose baseline covers package registries
   but not necessarily the vendor's download host.
 
-### 4. Cline CLI
-
-- [ ] `cline`.
-- Install: npm; verify the package name (the project is primarily an IDE
-  extension, and the CLI is the newer surface).
-- Env: provider keys, same spread as OpenCode.
-
-### 5. Goose
+### 4. Goose
 
 - [ ] `goose` (Block).
 - Install: upstream install script or Homebrew; a Linux binary download is the
@@ -168,13 +162,13 @@ wrong package name in the Dockerfile fails silently (`|| true`).
   this**, a keyring-backed login may not persist through a HOME bind mount alone,
   which would make this the first adapter needing more than `AuthPersistDir`.
 
-### 6. Crush
+### 5. Crush
 
 - [ ] `crush` (Charm).
 - Install: npm (`@charmland/crush`) or a Go binary release.
 - Env: provider keys; config `~/.config/crush`.
 
-### 7. Qwen Code
+### 6. Qwen Code
 
 - [ ] `qwen`.
 - Install: npm (`@qwen-code/qwen-code`).
@@ -182,19 +176,19 @@ wrong package name in the Dockerfile fails silently (`|| true`).
   `DASHSCOPE_API_KEY`.
 - Note: a Gemini CLI fork, so the `gemini` adapter is the closest template.
 
-### 8. Amp
+### 7. Amp
 
 - [ ] `amp` (Sourcegraph).
 - Install: npm (`@sourcegraph/amp`).
 - Env: `AMP_API_KEY`, `AMP_URL`.
 
-### 9. Continue CLI
+### 8. Continue CLI
 
 - [ ] `cn`.
 - Install: npm (`@continuedev/cli`).
 - Env: `CONTINUE_API_KEY` plus provider keys; config `~/.continue`.
 
-### 10. OpenHands CLI
+### 9. OpenHands CLI
 
 - [ ] `openhands`.
 - Install: Python — blocked on the same image work as aider.
@@ -204,13 +198,13 @@ wrong package name in the Dockerfile fails silently (`|| true`).
   only meaningful for the local/CLI-only runtime mode. Confirm that mode exists
   and works before starting.
 
-### 11. Droid
+### 10. Droid
 
 - [ ] `droid` (Factory).
 - Install: upstream install script.
 - Env: `FACTORY_API_KEY`.
 
-### 12. Plandex
+### 11. Plandex
 
 - [ ] `plandex` / `pdx`.
 - Install: install script or Go binary.
