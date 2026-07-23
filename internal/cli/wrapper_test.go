@@ -206,7 +206,7 @@ func TestAgentBootstrapScriptRuns(t *testing.T) {
 // users who pass an env var of their own.
 func TestGooseForcesKeyringOff(t *testing.T) {
 	for _, extra := range [][]string{nil, {"--env", "FOO=bar"}} {
-		line := renderDryRun(t, newGooseCmd, extra)
+		line := renderDryRun(t, newGooseCmd(), extra)
 		if !strings.Contains(line, gooseDisableKeyring) {
 			t.Errorf("goose %v: docker argv is missing %s:\n%s", extra, gooseDisableKeyring, line)
 		}
@@ -216,10 +216,43 @@ func TestGooseForcesKeyringOff(t *testing.T) {
 	}
 }
 
+// TestEveryAgentRendersADryRun runs every adapter end to end through config
+// load, spec build and argv render. It is the cheapest guard against a new
+// adapter that compiles and satisfies the contract test but blows up the moment
+// anyone runs it — and with more than a dozen of them, nobody is going to try
+// each by hand.
+//
+// It also pins the isolation invariants per agent, since an adapter is the one
+// place a mount or a HOME could be wired in by mistake: every agent must get the
+// fake HOME, its own persisted agent home, and a disposable container.
+func TestEveryAgentRendersADryRun(t *testing.T) {
+	for _, cmd := range agentCmds() {
+		agent := cmd.Annotations[agentAnnotation]
+		t.Run(agent, func(t *testing.T) {
+			line := renderDryRun(t, cmd, nil)
+			for _, want := range []string{
+				"--rm",
+				"-e HOME=/sandbox/home",
+				"target=/sandbox/home",
+				"agents/" + agent,
+			} {
+				if !strings.Contains(line, want) {
+					t.Errorf("docker argv missing %q:\n%s", want, line)
+				}
+			}
+			// No agent may reach the host home. The persisted agent dir lives
+			// under it, so check for a bare mount of the home itself.
+			if strings.Contains(line, "source="+os.Getenv("HOME")+",") {
+				t.Errorf("agent mounts the host home:\n%s", line)
+			}
+		})
+	}
+}
+
 // renderDryRun runs a wrapper with --dry-run and returns the docker command line
 // it printed — the real argv, not a reconstruction. HOME points at a temp dir so
 // the run neither reads nor creates anything in the real one.
-func renderDryRun(t *testing.T, ctor func() *cobra.Command, extra []string) string {
+func renderDryRun(t *testing.T, cmd *cobra.Command, extra []string) string {
 	t.Helper()
 	t.Setenv("HOME", t.TempDir())
 
@@ -238,7 +271,6 @@ func renderDryRun(t *testing.T, ctor func() *cobra.Command, extra []string) stri
 		done <- b.String()
 	}()
 
-	cmd := ctor()
 	cmd.SetArgs(append([]string{"--dry-run"}, extra...))
 	execErr := cmd.Execute()
 	w.Close()

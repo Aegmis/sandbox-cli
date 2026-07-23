@@ -4,7 +4,8 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## What this is
 
-`sandbox-cli` runs AI coding agents (Claude Code, Codex CLI, Gemini CLI, OpenCode) or any command inside a disposable,
+`sandbox-cli` runs AI coding agents (Claude Code, Codex, Gemini, OpenCode, Cline, Goose, Crush, Aider,
+Copilot CLI, Cursor, Qwen, Amp, Continue, OpenHands, Droid) or any command inside a disposable,
 isolated Docker container. Only the chosen project is bind-mounted at `/workspace`; `HOME` is a
 fake ephemeral path (`/sandbox/home`) and the container is `--rm`. The goal is to give an agent
 "Allow All" autonomy while limiting the blast radius to the project it is editing.
@@ -61,15 +62,15 @@ cmd/sandbox-cli  →  internal/cli  →  config.Load + sandbox.BuildSpec  →  r
 
 2. **The two subcommand flag-parsing modes are different on purpose** (`internal/cli`):
    - `run` — sandbox flags first, guest command after `--` (`sandbox-cli run --dry-run -- npm test`).
-   - agent wrappers (`claude`/`codex`/`gemini`/`opencode`) — `DisableFlagParsing: true`; `splitWrapperArgs` consumes a *leading*
+   - agent wrappers (one per agent, listed in `agentCmds()`) — `DisableFlagParsing: true`; `splitWrapperArgs` consumes a *leading*
      run of recognized sandbox long-flags, then forwards **everything else verbatim** to the agent, so
      `sandbox-cli claude --dangerously-skip-permissions` just works and agent short flags never collide.
      A sandbox option after the boundary needs a `--` separator.
 
 ### Agent wrappers
 
-Each wrapper is one file in `internal/cli` (`claude.go`, `codex.go`, `gemini.go`, `opencode.go`)
-carrying a suggested opt-in env allowlist (e.g. `ANTHROPIC_API_KEY`, applied only if set) and ending
+Each wrapper is one file in `internal/cli` (`claude.go`, `gemini.go`, `aider.go`, …), listed in
+`agentCmds()`, carrying a suggested opt-in env allowlist (e.g. `ANTHROPIC_API_KEY`, applied only if set) and ending
 in `finishAgentCmd(cmd, rf, "<agent>")` (`agents.go`), which adds the shared sandbox flags and
 **persists the agent login by default** by bind-mounting a sandbox-owned host dir
 (`~/.config/sandbox/agents/<name>`) as the agent's whole HOME. This is separate from the host's real
@@ -92,7 +93,7 @@ Only `claude` gets one on screen, and that is a deliberate limit, not an oversig
 - **`claude`** — Claude Code's `statusLine` hook runs `sandbox-statusline` (baked in the image)
   and renders it in its own UI. Injected via a managed-settings.json mounted read-only, which
   never touches the user's own Claude settings. `--no-statusline` opts out.
-- **`gemini` / `opencode` / `codex`** — nothing on screen. Neither Gemini CLI nor OpenCode has a
+- **every other agent** — nothing on screen. Neither Gemini CLI nor OpenCode has a
   status-line hook (verified upstream; see `docs/proposals/agent-adapters.md`). Running them
   inside tmux to get one was tried and reverted: it made the agents' TUIs render badly, which is
   a bad trade for a gauge. `sandbox-cli stats` in a second terminal is the answer for these.

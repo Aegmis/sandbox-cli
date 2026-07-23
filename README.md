@@ -1,7 +1,8 @@
 # sandbox-cli
 
-Run AI coding agents (Claude Code, Codex CLI, Gemini CLI, OpenCode, Cline, and
-more) — or any command — inside a
+Run AI coding agents (Claude Code, Codex, Gemini, OpenCode, Cline, Goose, Crush,
+Aider, Copilot CLI, Cursor, Qwen, Amp, Continue, OpenHands, Droid) — or any
+command — inside a
 **disposable, isolated Docker container**. Only the project you choose is mounted
 at `/workspace`; `HOME` is a fake, ephemeral directory. A mistaken `rm -rf ~` or
 a prompt-injected command can't touch the rest of your machine.

@@ -1,7 +1,7 @@
 # Agent adapters: shipped, and the queue
 
-**Status:** four adapters shipped (`claude`, `codex`, `gemini`, `opencode`); the
-rest below are a TODO list, ordered most-popular first.
+**Status:** fifteen adapters shipped. Plandex was investigated and rejected (see
+Rejected); what is left in the queue is the long tail.
 **Code required per adapter:** one file in `internal/cli`, one line in
 `root.go`. No image change — see "Why new agents are not baked".
 
@@ -139,21 +139,29 @@ including a reminder that under `--allow` the install host has to be on the
 allowlist. Vendor install scripts (Cursor, Droid) are the ones most likely to
 need a domain adding.
 
+## Rejected
+
+**Plandex — not adaptable, checked July 2026.** Its hosted Cloud stopped
+accepting new users in October 2025, so the client has no server to talk to
+unless you run one. Self-hosting needs docker-compose, or a PostgreSQL database
+plus a gcc/tree-sitter build for the server — neither is possible in a container
+with no docker socket, and standing up Postgres inside a disposable sandbox is
+far outside what this tool does. Upstream has been dormant since October 2025 and
+`plandex.ai`, the only documented install route, does not currently resolve.
+
+This is what BLOCKED is for. A wrapper would have compiled, passed every test
+here, and failed on first use for reasons no user could have diagnosed.
+
 ## The queue
 
+Everything ranked above these has shipped. What remains are agents that were
+below the line where a user asking for one is a better signal than this list.
 Ordered by how widely the agent is used (install base and project traction),
 most popular first. That ordering is a judgement call made in **July 2026** and
 is the thing most likely to be stale here — re-check before picking one off the
 top. Package names and config paths below are the starting point for the work,
 **not verified facts**: confirm each against upstream when implementing, since a
 wrong package name in the Dockerfile fails silently (`|| true`).
-
-### 1. Plandex
-
-- [ ] `plandex` / `pdx`.
-- Install: install script or Go binary.
-- Note: client/server split — the server can run locally or hosted. The local
-  server mode needs a database inside the container; start with hosted mode.
 
 Below this line the agents are niche enough that a user asking for one is a
 better signal than this list: Mentat, Codebuff, smol-developer, GPT Engineer,
