@@ -525,6 +525,36 @@ point the agent at `host.docker.internal`.
 uid: `--user "$(id -u):$(id -g)"`. On macOS Docker Desktop this is handled
 automatically.
 
+**I can't select text with the mouse** — the agent's UI turns on mouse reporting,
+so your terminal hands the drag to the application instead of making a selection.
+Hold your terminal's override key while dragging: `Option` in iTerm2, `Shift` in
+Ghostty. For a code block, add the rectangular-selection modifier (`Cmd+Option`
+in iTerm2, `Ctrl+Alt` in Ghostty) so you get the code columns without the
+surrounding frame. None of this involves the sandbox — it behaves the same way
+running the agent directly on the host.
+
+**Claude's `/copy` doesn't reach my clipboard** — `/copy` is Claude Code's own
+command, and it shells out to a platform clipboard tool (`pbcopy` on macOS,
+`xclip`/`xsel`/`wl-copy` on Linux). The container has none of them, and none
+could work there: there is no X or Wayland display to reach, and `pbcopy` is a
+macOS binary that cannot run on Linux at all. Ask the agent to write the text to
+a file in `/workspace` and copy it host-side (`pbcopy < snippet.md`) — which also
+avoids the hard line wraps a screen selection picks up.
+
+**A tool says it copied, but nothing pastes** — something in the container is
+using an OSC 52 escape sequence to reach the host clipboard, and your terminal
+has to permit that. iTerm2 gates it behind Settings → General → Selection →
+"Applications in terminal may access clipboard" (off by default); tmux needs
+`set -g set-clipboard on` or it swallows the sequence; macOS Terminal.app has no
+support at all. Test the terminal on its own first, with no container involved:
+
+```sh
+printf '\033]52;c;%s\a' "$(printf hello | base64)"   # then paste
+```
+
+If that doesn't paste, it's terminal configuration and nothing in the sandbox can
+change it.
+
 **I want to see what it will do without running** — add `--dry-run`.
 
 **The agent refuses `--dangerously-skip-permissions` as root** — that's by
