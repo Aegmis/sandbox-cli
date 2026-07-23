@@ -122,11 +122,13 @@ equivalent.
 
 ### Why new agents are not baked
 
-Measured July 2026, unpacked sizes from the npm registry: `@google/gemini-cli`
-93 MiB, `@qwen-code/qwen-code` 84 MiB, `@continuedev/cli` 62 MiB. Several others
-(`@github/copilot`, `@charmland/crush`) report near-zero because they are stubs
-that download a platform binary during install — their real footprint is larger
-than the registry number, not smaller. Aider and OpenHands are Python, so baking
+Measured July 2026, unpacked sizes from the npm registry (decimal MB, Linux
+payload): `@github/copilot` 350, `@factory/cli` 148, `@cline/cli` 130,
+`@ampcode/cli` 107, `@google/gemini-cli` 98, `@qwen-code/qwen-code` 88,
+`@continuedev/cli` 65. Read the *payload* package, not the one you install:
+several agents publish a near-zero stub whose platform binary is fetched during
+install, so the headline package size understates them by two orders of
+magnitude. Aider and OpenHands are Python, so baking
 them also means adding pip/pipx or uv to the image.
 
 Baking the whole queue would add somewhere between several hundred megabytes and

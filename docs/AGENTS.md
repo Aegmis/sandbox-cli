@@ -54,19 +54,25 @@ persisted agent home the first time you run it — so the image stays small and 
 only download agents you actually use. That first run takes a while and needs
 network; later runs start immediately.
 
-| Agent | Availability | Approx. download on first use |
+| Agent | Availability | Installed size |
 |---|---|---|
 | `claude`, `codex`, `gemini`, `opencode` | baked into the base image | — |
-| `copilot` | on first use | ~335 MB |
-| `cursor` | on first use | ~225 MB |
-| `droid` | on first use | ~150 MB |
-| `cline` | on first use | ~150 MB |
-| `amp` | on first use | ~111 MB |
-| `qwen` | on first use | ~87 MB |
-| `continue` | on first use | ~62 MB |
-| `aider` | on first use | large (uv + Python deps) |
-| `goose`, `openhands` | on first use | standalone binary |
-| `crush` | on first use | small stub + platform binary |
+| `copilot` | on first use | 350 MB |
+| `droid` | on first use | 148 MB |
+| `cline` | on first use | 130 MB |
+| `amp` | on first use | 107 MB |
+| `qwen` | on first use | 88 MB |
+| `continue` | on first use | 65 MB |
+| `cursor` | on first use | ~225 MB (reported, not measured) |
+| `aider` | on first use | large — uv plus Aider's Python dependencies |
+| `goose` | on first use | 141 MB (musl) / 285 MB (glibc) |
+| `openhands`, `crush` | on first use | a single platform binary, size not published |
+
+Sizes are the npm registry's unpacked size for each agent's Linux payload
+(arm64; x64 is within a few percent), in decimal MB as npm reports them. Only the
+payload matching your platform is downloaded. The four agents without an npm
+package are marked — `cursor` is the vendor's own figure, and the two binary
+installs publish no size, so those are the numbers I could not verify.
 
 If an install fails you get an explicit message and exit code 127 — not a
 mysterious "command not found".
