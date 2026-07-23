@@ -535,11 +535,15 @@ running the agent directly on the host.
 
 **Claude's `/copy` doesn't reach my clipboard** — `/copy` is Claude Code's own
 command, and it shells out to a platform clipboard tool (`pbcopy` on macOS,
-`xclip`/`xsel`/`wl-copy` on Linux). The container has none of them, and none
-could work there: there is no X or Wayland display to reach, and `pbcopy` is a
-macOS binary that cannot run on Linux at all. Ask the agent to write the text to
-a file in `/workspace` and copy it host-side (`pbcopy < snippet.md`) — which also
-avoids the hard line wraps a screen selection picks up.
+`xclip`/`xsel`/`wl-copy` on Linux). None of those can work in a container, so the
+image ships a shim under all four names that writes an OSC 52 escape sequence to
+the terminal instead; your emulator reads it off the tty and puts the text on the
+real clipboard. If nothing arrives, the terminal is refusing the sequence — see
+the next entry. For very long output, sidestep the clipboard entirely: ask the
+agent to write the text to a file in `/workspace` and copy it host-side
+(`pbcopy < snippet.md`), which also avoids the hard line wraps a screen selection
+picks up. Pasting *into* the sandbox from the host clipboard is not supported and
+reports an error rather than returning nothing.
 
 **A tool says it copied, but nothing pastes** — something in the container is
 using an OSC 52 escape sequence to reach the host clipboard, and your terminal
