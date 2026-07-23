@@ -59,6 +59,7 @@ The shared contract is pinned by `TestAgentWrappersShareTheContract`
 
 | Cline | `cline` | `cline` (npm), installed on first use | `ANTHROPIC_API_KEY`, `CLINE_API_KEY`, `OPENAI_API_KEY`, `OPENROUTER_API_KEY`, `AI_GATEWAY_API_KEY`, `V0_API_KEY` |
 | Goose | `goose` | official installer, on first use (needs `bzip2`) | `ANTHROPIC_API_KEY`, `OPENAI_API_KEY`, `GOOGLE_API_KEY`, `GROQ_API_KEY`, `OPENROUTER_API_KEY`, `GOOSE_PROVIDER`, `GOOSE_MODEL`, `GOOSE_FAST_MODEL`, `GOOSE_MODE`; **sets** `GOOSE_DISABLE_KEYRING=1` |
+| Crush | `crush` | `@charmland/crush` (npm), installed on first use | `ANTHROPIC_API_KEY`, `OPENAI_API_KEY`, `GEMINI_API_KEY`, `OPENROUTER_API_KEY`, `GROQ_API_KEY`, `HYPER_API_KEY`, AWS/Azure keys |
 ### Status-line support, per agent
 
 Checked upstream in July 2026, because it is the first thing a new adapter has to
@@ -163,13 +164,7 @@ wrong package name in the Dockerfile fails silently (`|| true`).
   under `--allow` (the egress allowlist), whose baseline covers package registries
   but not necessarily the vendor's download host.
 
-### 4. Crush
-
-- [ ] `crush` (Charm).
-- Install: npm (`@charmland/crush`) or a Go binary release.
-- Env: provider keys; config `~/.config/crush`.
-
-### 5. Qwen Code
+### 4. Qwen Code
 
 - [ ] `qwen`.
 - Install: npm (`@qwen-code/qwen-code`).
@@ -177,19 +172,19 @@ wrong package name in the Dockerfile fails silently (`|| true`).
   `DASHSCOPE_API_KEY`.
 - Note: a Gemini CLI fork, so the `gemini` adapter is the closest template.
 
-### 6. Amp
+### 5. Amp
 
 - [ ] `amp` (Sourcegraph).
 - Install: npm (`@sourcegraph/amp`).
 - Env: `AMP_API_KEY`, `AMP_URL`.
 
-### 7. Continue CLI
+### 6. Continue CLI
 
 - [ ] `cn`.
 - Install: npm (`@continuedev/cli`).
 - Env: `CONTINUE_API_KEY` plus provider keys; config `~/.continue`.
 
-### 8. OpenHands CLI
+### 7. OpenHands CLI
 
 - [ ] `openhands`.
 - Install: Python — blocked on the same image work as aider.
@@ -199,13 +194,13 @@ wrong package name in the Dockerfile fails silently (`|| true`).
   only meaningful for the local/CLI-only runtime mode. Confirm that mode exists
   and works before starting.
 
-### 9. Droid
+### 8. Droid
 
 - [ ] `droid` (Factory).
 - Install: upstream install script.
 - Env: `FACTORY_API_KEY`.
 
-### 10. Plandex
+### 9. Plandex
 
 - [ ] `plandex` / `pdx`.
 - Install: install script or Go binary.

@@ -165,6 +165,7 @@ sandbox-owned host directory is bind-mounted as the agent's whole home:
 ~/.config/sandbox/agents/opencode  ->  /sandbox/home   (sandbox-cli opencode)
 ~/.config/sandbox/agents/cline     ->  /sandbox/home   (sandbox-cli cline)
 ~/.config/sandbox/agents/goose     ->  /sandbox/home   (sandbox-cli goose)
+~/.config/sandbox/agents/crush     ->  /sandbox/home   (sandbox-cli crush)
 ```
 
 The whole home is persisted (not just `~/.claude`) because agents keep their
